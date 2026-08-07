@@ -1,0 +1,18 @@
+services:
+  news:
+    build: .
+    container_name: daily-news
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      TIMEZONE: ${TIMEZONE:-America/Vancouver}
+      UPDATE_HOUR: ${UPDATE_HOUR:-8}
+      UPDATE_MINUTE: ${UPDATE_MINUTE:-0}
+      DATABASE_PATH: /data/news.db
+    volumes:
+      - news-data:/data
+
+volumes:
+  news-data:
+
