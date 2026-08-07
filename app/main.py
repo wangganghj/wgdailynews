@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import SOURCES, TIMEZONE, UPDATE_HOUR, UPDATE_MINUTE
-from app.fetcher import update_all
+from app.fetcher import get_progress, update_all
 from app.store import get_state, init_db, load_sources
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -52,7 +52,7 @@ async def manual_update():
 
 @app.get("/api/status")
 async def status():
-    return {"status": get_state("update_status") or "idle", "last_updated_at": get_state("last_updated_at")}
+    return {"status": get_state("update_status") or "idle", "last_updated_at": get_state("last_updated_at"), "progress": get_progress()}
 
 
 @app.get("/health")

@@ -9,17 +9,19 @@ class Source:
     key: str
     name: str
     homepage: str
+    feeds: tuple[str, ...] = ()
+    mode: str = "rss"
 
 
 SOURCES = (
-    Source("wsj", "The Wall Street Journal", "https://www.wsj.com/"),
-    Source("wsj-cn", "华尔街日报中文网", "https://cn.wsj.com/"),
-    Source("washington-post", "The Washington Post", "https://www.washingtonpost.com/"),
-    Source("bbc", "BBC", "https://www.bbc.com/"),
-    Source("economist", "The Economist", "https://www.economist.com/"),
-    Source("zaobao", "联合早报", "https://www.zaobao.com.sg/global"),
-    Source("ft", "Financial Times", "https://www.ft.com/"),
-    Source("nytimes", "The New York Times", "https://www.nytimes.com/"),
+    Source("wsj", "The Wall Street Journal", "https://www.wsj.com/", ("https://feeds.a.dj.com/rss/RSSWorldNews.xml", "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml")),
+    Source("wsj-cn", "华尔街日报中文网", "https://cn.wsj.com/", ("https://cn.wsj.com/zh-hans/rss",)),
+    Source("washington-post", "The Washington Post", "https://www.washingtonpost.com/", ("https://feeds.washingtonpost.com/rss/world", "https://feeds.washingtonpost.com/rss/national")),
+    Source("bbc", "BBC", "https://www.bbc.com/", ("https://feeds.bbci.co.uk/news/world/rss.xml", "https://feeds.bbci.co.uk/news/rss.xml")),
+    Source("economist", "The Economist", "https://www.economist.com/", ("https://www.economist.com/the-world-this-week/rss.xml", "https://www.economist.com/international/rss.xml")),
+    Source("zaobao", "联合早报", "https://www.zaobao.com.sg/global", mode="web"),
+    Source("ft", "Financial Times", "https://www.ft.com/", ("https://www.ft.com/world?format=rss", "https://www.ft.com/global-economy?format=rss")),
+    Source("nytimes", "The New York Times", "https://www.nytimes.com/", ("https://rss.nytimes.com/services/xml/rss/nyt/World.xml",)),
 )
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/news.db")
