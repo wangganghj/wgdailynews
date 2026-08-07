@@ -1,5 +1,6 @@
 services:
   news:
+    image: ${NEWS_IMAGE:-ghcr.io/wangganghj/wgdailynews:latest}
     build: .
     container_name: daily-news
     restart: unless-stopped
@@ -15,4 +16,3 @@ services:
 
 volumes:
   news-data:
-
