@@ -11,6 +11,9 @@ services:
       UPDATE_HOUR: ${UPDATE_HOUR:-8}
       UPDATE_MINUTE: ${UPDATE_MINUTE:-0}
       DATABASE_PATH: /data/news.db
+      TRANSLATION_PROVIDER: ${TRANSLATION_PROVIDER:-google}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
     volumes:
       - news-data:/data
 

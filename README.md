@@ -50,6 +50,8 @@ cp .env.example .env
 ## 实现说明
 
 - 联合早报直接读取首页；其他来源优先读取 RSS，再从文章页的 Open Graph 元数据补全图片和摘要。
+- 每条新闻显示原标题、原摘要及对应的简体中文翻译；手动更新会显示抓取、图片补全、翻译和缓存阶段。
+- 默认使用 Google 翻译。设置 `TRANSLATION_PROVIDER=openai` 和 `OPENAI_API_KEY` 可使用 OpenAI 获得更好的新闻语境翻译。
 - 不绕过登录或付费墙。若来源限制访问，页面会显示错误提示，已缓存内容仍可保留。
 - 摘要来自 feed 的公开 description/content，进行纯文本清理和截断；不是全文转载，也不使用外部 AI API。
 - 为避免重复的定时任务和 SQLite 写入冲突，容器固定使用一个 Uvicorn worker。
