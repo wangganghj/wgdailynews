@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Daily News · 今日新闻</title>
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/progress.css') }}">
 </head>
 <body>
   <header class="hero">
@@ -16,6 +17,10 @@
     <button id="update-button" {% if status == 'running' %}disabled{% endif %}>
       <span class="refresh">↻</span> <span id="update-label">{{ '更新中…' if status == 'running' else '立即更新' }}</span>
     </button>
+    <div class="progress-panel" id="progress-panel" {% if status != 'running' %}hidden{% endif %}>
+      <div class="progress-track"><span id="progress-bar"></span></div>
+      <p id="progress-text">正在准备更新…</p>
+    </div>
     <p class="updated">最近更新：<span id="updated-at" data-time="{{ last_updated or '' }}">{{ last_updated or '尚未更新' }}</span></p>
   </header>
 
@@ -55,4 +60,3 @@
   <script src="{{ url_for('static', path='/app.js') }}"></script>
 </body>
 </html>
-
