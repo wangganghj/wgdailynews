@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from urllib.parse import urljoin
 
-import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
@@ -27,38 +26,42 @@ def _plain(value: str | None, limit: int = 320) -> str:
     return text[: limit - 1].rsplit(" ", 1)[0] + "…"
 
 
-def _image(entry) -> str | None:
-    for item in entry.get("media_content", []) + entry.get("media_thumbnail", []):
-        if item.get("url"):
-            return item["url"]
-    for enclosure in entry.get("enclosures", []):
-        if enclosure.get("type", "").startswith("image/") and enclosure.get("href"):
-            return enclosure["href"]
-    soup = BeautifulSoup(entry.get("summary", ""), "html.parser")
-    img = soup.find("img")
-    return img.get("src") if img else None
+def _image_url(img, base_url: str) -> str | None:
+    if not img:
+        return None
+    candidate = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
+    if not candidate and img.get("srcset"):
+        candidate = img["srcset"].split(",")[-1].strip().split(" ")[0]
+    return urljoin(base_url, candidate) if candidate else None
 
 
-def _from_feed(client: httpx.Client, feed_url: str) -> list[dict]:
-    response = client.get(feed_url)
-    response.raise_for_status()
-    parsed = feedparser.parse(response.content)
-    if parsed.bozo and not parsed.entries:
-        raise ValueError(str(parsed.bozo_exception))
-    results = []
-    for entry in parsed.entries:
-        url = entry.get("link")
-        title = _plain(entry.get("title"), 180)
-        if not url or not title:
-            continue
-        results.append({
-            "title": title,
-            "url": url,
-            "image": _image(entry),
-            "summary": _plain(entry.get("summary") or entry.get("description") or entry.get("content", [{}])[0].get("value")),
-            "published": entry.get("published") or entry.get("updated") or "",
-        })
-    return results
+def _meta(soup: BeautifulSoup, *selectors: tuple[str, str]) -> str | None:
+    for attr, value in selectors:
+        node = soup.find("meta", attrs={attr: value})
+        if node and node.get("content"):
+            return node["content"].strip()
+    return None
+
+
+def _enrich_article(client: httpx.Client, article: dict) -> dict:
+    if article.get("image") and article.get("summary"):
+        return article
+    try:
+        response = client.get(article["url"])
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        article["image"] = article.get("image") or _meta(
+            soup, ("property", "og:image"), ("name", "twitter:image"), ("name", "twitter:image:src")
+        )
+        article["summary"] = article.get("summary") or _plain(_meta(
+            soup, ("property", "og:description"), ("name", "description"), ("name", "twitter:description")
+        ))
+        published = _meta(soup, ("property", "article:published_time"), ("name", "date"))
+        if published:
+            article["published"] = published
+    except Exception as exc:
+        log.debug("Could not enrich %s: %s", article["url"], exc)
+    return article
 
 
 def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
@@ -66,20 +69,24 @@ def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
     results, seen = [], set()
-    for node in soup.select("article, main h2, main h3"):
-        link = node.find("a", href=True) if node.name == "article" else node.find("a", href=True)
+    candidates = soup.select("article, main h2, main h3, [data-testid*='card'], main a[href]")
+    if len(candidates) < 10:
+        candidates.extend(soup.select("a[href]"))
+    for node in candidates:
+        link = node if node.name == "a" and node.get("href") else node.find("a", href=True)
         if not link and node.parent:
             link = node.parent if node.parent.name == "a" and node.parent.get("href") else None
         if not link:
             continue
-        title = _plain(link.get_text(" ", strip=True), 180)
+        heading = link.find(["h1", "h2", "h3", "h4"])
+        title = _plain((heading or link).get_text(" ", strip=True) or link.get("aria-label"), 180)
         url = urljoin(homepage, link["href"])
-        if len(title) < 12 or url in seen or not url.startswith("http"):
+        if len(title) < 12 or url in seen or not url.startswith("http") or url.rstrip("/") == homepage.rstrip("/"):
             continue
-        container = node if node.name == "article" else node.parent
+        container = node if node.name == "article" else link.find_parent("article") or node.parent
         img = container.find("img") if container else None
         summary_node = container.find("p") if container else None
-        results.append({"title": title, "url": url, "image": urljoin(homepage, img.get("src")) if img and img.get("src") else None, "summary": _plain(summary_node.get_text(" ") if summary_node else ""), "published": ""})
+        results.append({"title": title, "url": url, "image": _image_url(img, homepage), "summary": _plain(summary_node.get_text(" ") if summary_node else ""), "published": ""})
         seen.add(url)
         if len(results) >= 10:
             break
@@ -87,32 +94,19 @@ def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
 
 
 def fetch_source(source) -> tuple[list[dict], str | None]:
-    errors = []
-    headers = {"User-Agent": USER_AGENT, "Accept": "application/rss+xml, application/xml, text/xml, text/html;q=0.9"}
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.8,zh-CN;q=0.6",
+    }
     with httpx.Client(headers=headers, timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-        articles = []
-        for feed in source.feeds:
-            try:
-                articles.extend(_from_feed(client, feed))
-            except Exception as exc:
-                errors.append(f"{feed}: {exc}")
-        deduped, seen = [], set()
-        for article in articles:
-            marker = article["url"].split("?")[0]
-            if marker not in seen:
-                deduped.append(article)
-                seen.add(marker)
-        if len(deduped) < 10:
-            try:
-                for article in _from_homepage(client, source.homepage):
-                    marker = article["url"].split("?")[0]
-                    if marker not in seen:
-                        deduped.append(article)
-                        seen.add(marker)
-            except Exception as exc:
-                errors.append(f"homepage: {exc}")
-    error = "; ".join(errors) if not deduped and errors else None
-    return deduped[:10], error
+        try:
+            articles = _from_homepage(client, source.homepage)[:10]
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                articles = list(pool.map(lambda item: _enrich_article(client, item), articles))
+            return articles, None if articles else "首页未找到可识别的新闻链接"
+        except Exception as exc:
+            return [], f"homepage: {exc}"
 
 
 def update_all() -> bool:
