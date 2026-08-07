@@ -17,4 +17,11 @@ def test_home():
         assert response.status_code == 200
         assert "世界正在发生什么" in response.text
         assert "Financial Times" in response.text
+        assert "The New York Times" in response.text
 
+
+def test_status_includes_progress():
+    with TestClient(app) as client:
+        payload = client.get("/api/status").json()
+        assert payload["progress"]["total"] == 8
+        assert "active" in payload["progress"]
