@@ -46,7 +46,9 @@
           </a>
           <div class="card-copy">
             <h3><a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a></h3>
+            <p class="translation title-translation">{{ article.title_zh or '中文翻译暂不可用' }}</p>
             <p>{{ article.summary or '该媒体未提供公开摘要，点击标题阅读原文。' }}</p>
+            <p class="translation summary-translation">{{ article.summary_zh or ('该媒体未提供可翻译的公开摘要。' if not article.summary else '中文翻译暂不可用') }}</p>
             {% if article.published %}<time>{{ article.published }}</time>{% endif %}
           </div>
         </article>
