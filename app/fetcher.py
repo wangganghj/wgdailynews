@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import copy
+import json
 import logging
 import re
 import threading
@@ -13,7 +14,7 @@ import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
-from app.config import REQUEST_TIMEOUT, SOURCES, USER_AGENT
+from app.config import OPENAI_API_KEY, OPENAI_MODEL, REQUEST_TIMEOUT, SOURCES, TRANSLATION_PROVIDER, USER_AGENT
 from app.store import save_source, set_state
 
 log = logging.getLogger(__name__)
@@ -120,6 +121,53 @@ def _enrich_article(client: httpx.Client, article: dict) -> dict:
     return article
 
 
+def _mostly_chinese(text: str) -> bool:
+    compact = re.sub(r"\s+", "", text or "")
+    return bool(compact) and sum("\u4e00" <= char <= "\u9fff" for char in compact) / len(compact) > 0.25
+
+
+def _google_translate(client: httpx.Client, text: str) -> str:
+    if not text or _mostly_chinese(text):
+        return text
+    response = client.get("https://translate.googleapis.com/translate_a/single", params={"client": "gtx", "sl": "auto", "tl": "zh-CN", "dt": "t", "q": text[:4500]})
+    response.raise_for_status()
+    payload = response.json()
+    return "".join(segment[0] for segment in payload[0] if segment and segment[0]).strip()
+
+
+def _openai_translate(client: httpx.Client, title: str, summary: str) -> tuple[str, str]:
+    response = client.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+        json={
+            "model": OPENAI_MODEL,
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": "你是严谨的新闻翻译。将输入准确翻译为简体中文，保留人名、机构、数字和语气，不添加解释。只返回 JSON：title_zh 和 summary_zh。"},
+                {"role": "user", "content": f"Title: {title}\nSummary: {summary}"},
+            ],
+        },
+    )
+    response.raise_for_status()
+    data = json.loads(response.json()["choices"][0]["message"]["content"])
+    return data.get("title_zh", ""), data.get("summary_zh", "")
+
+
+def _translate_article(client: httpx.Client, article: dict) -> dict:
+    title, summary = article.get("title", ""), article.get("summary", "")
+    try:
+        if TRANSLATION_PROVIDER == "openai" and OPENAI_API_KEY:
+            article["title_zh"], article["summary_zh"] = _openai_translate(client, title, summary)
+        else:
+            article["title_zh"] = _google_translate(client, title)
+            article["summary_zh"] = _google_translate(client, summary)
+    except Exception as exc:
+        log.warning("Translation failed for %s: %s", article.get("url"), exc)
+        article["title_zh"], article["summary_zh"] = "", ""
+    return article
+
+
 def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
     response = client.get(homepage)
     response.raise_for_status()
@@ -166,6 +214,9 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
             _progress(source, "补全图片与摘要")
             with ThreadPoolExecutor(max_workers=4) as pool:
                 articles = list(pool.map(lambda item: _enrich_article(client, item), articles))
+            _progress(source, "翻译为中文")
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                articles = list(pool.map(lambda item: _translate_article(client, item), articles))
             empty_message = "首页未找到可识别的新闻链接" if source.mode == "web" else "RSS 未返回可识别的新闻"
             return articles, None if articles else empty_message
         except Exception as exc:
