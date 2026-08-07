@@ -18,6 +18,7 @@ def test_home():
         assert "世界正在发生什么" in response.text
         assert "Financial Times" in response.text
         assert "The New York Times" in response.text
+        assert 'id="progress-text"' in response.text
 
 
 def test_status_includes_progress():
