@@ -13,20 +13,31 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import SCREENSHOT_DIR, SOURCES, TIMEZONE, UPDATE_HOUR, UPDATE_MINUTE
-from app.fetcher import get_progress, update_all
-from app.store import get_state, init_db, load_sources
+from app.fetcher import get_progress, is_update_running, update_all
+from app.store import get_state, init_db, load_sources, set_state
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 templates = Jinja2Templates(directory="app/templates")
 
 
+def _recover_interrupted_update() -> bool:
+    interrupted = get_state("update_status") == "running"
+    if interrupted:
+        set_state("update_status", "idle")
+    return interrupted
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # A container restart can interrupt an update after the persistent flag was
+    # set but before it was cleared. Progress itself is process-local, so reset
+    # that stale state on every startup.
+    interrupted_update = _recover_interrupted_update()
     scheduler = BackgroundScheduler(timezone=TIMEZONE)
     scheduler.add_job(update_all, CronTrigger(hour=UPDATE_HOUR, minute=UPDATE_MINUTE, timezone=TIMEZONE), id="daily-update", replace_existing=True, max_instances=1, coalesce=True)
     scheduler.start()
-    if not load_sources():
+    if interrupted_update or not load_sources():
         threading.Thread(target=update_all, daemon=True).start()
     yield
     scheduler.shutdown(wait=False)
@@ -52,7 +63,7 @@ async def home(request: Request):
 
 @app.post("/api/update")
 async def manual_update():
-    if get_state("update_status") == "running":
+    if is_update_running():
         return JSONResponse({"started": False, "message": "更新正在进行"}, status_code=409)
     threading.Thread(target=update_all, daemon=True).start()
     return JSONResponse({"started": True, "message": "已开始更新"}, status_code=202)
@@ -60,7 +71,10 @@ async def manual_update():
 
 @app.get("/api/status")
 async def status():
-    return {"status": get_state("update_status") or "idle", "last_updated_at": get_state("last_updated_at"), "progress": get_progress()}
+    actual_status = "running" if is_update_running() else "idle"
+    if get_state("update_status") != actual_status:
+        set_state("update_status", actual_status)
+    return {"status": actual_status, "last_updated_at": get_state("last_updated_at"), "progress": get_progress()}
 
 
 @app.get("/health")
