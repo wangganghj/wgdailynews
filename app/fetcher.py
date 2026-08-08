@@ -8,7 +8,7 @@ import os
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
 
 import feedparser
@@ -37,6 +37,10 @@ def _progress(source=None, phase: str | None = None, completed: int | None = Non
 def get_progress() -> dict:
     with progress_lock:
         return copy.deepcopy(progress_state)
+
+
+def is_update_running() -> bool:
+    return update_lock.locked()
 
 
 def _reset_progress() -> None:
@@ -200,22 +204,24 @@ def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
     return results
 
 
-def _fetch_kiosko_cover(client: httpx.Client, source) -> None:
-    if not source.cover_page:
-        raise ValueError("Kiosko.net 暂未收录该报纸")
+def _fetch_freedom_forum_cover(client: httpx.Client, source) -> None:
+    if not source.cover_id:
+        raise ValueError("Freedom Forum 暂未收录该报纸")
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     final_path = os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg")
     temp_path = os.path.join(SCREENSHOT_DIR, f".{source.key}.tmp.jpg")
-    page_response = client.get(source.cover_page)
-    page_response.raise_for_status()
-    soup = BeautifulSoup(page_response.text, "html.parser")
-    cover = soup.select_one("img#portada")
-    if not cover or not cover.get("src"):
-        raise ValueError("Kiosko.net 未提供今日头版")
-    image_response = client.get(urljoin(source.cover_page, cover["src"]))
-    image_response.raise_for_status()
-    if not image_response.headers.get("content-type", "").startswith("image/") or len(image_response.content) < 10_000:
-        raise ValueError("Kiosko.net 返回的头版图片无效")
+    image_response = None
+    # Weekend editions and upload times vary. Try today, then the preceding
+    # week, while retaining the last successful local cover on any failure.
+    for days_ago in range(8):
+        issue_date = (datetime.now(timezone.utc) - timedelta(days=days_ago)).date().isoformat()
+        image_url = f"https://d2dr22b2lm4tvw.cloudfront.net/{source.cover_id}/{issue_date}/front-page-medium.jpg"
+        candidate = client.get(image_url)
+        if candidate.status_code == 200 and candidate.headers.get("content-type", "").startswith("image/") and len(candidate.content) >= 10_000:
+            image_response = candidate
+            break
+    if image_response is None:
+        raise ValueError("Freedom Forum 最近 8 天没有可用封面")
     try:
         with open(temp_path, "wb") as image_file:
             image_file.write(image_response.content)
@@ -233,10 +239,21 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
     }
     with httpx.Client(headers=headers, timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
         try:
+            cover_error = None
             if source.mode == "cover":
-                _progress(source, "获取电子报头版")
-                _fetch_kiosko_cover(client, source)
-                return [], None
+                _progress(source, "从 Freedom Forum 获取封面")
+                try:
+                    _fetch_freedom_forum_cover(client, source)
+                except Exception as exc:
+                    cover_error = str(exc)
+                    log.warning("Cover failed for %s: %s", source.name, exc)
+                _progress(source, "读取 RSS")
+                try:
+                    articles = _from_feed(client, source)
+                except Exception as exc:
+                    log.warning("RSS failed for %s, trying homepage: %s", source.name, exc)
+                    _progress(source, "读取媒体首页")
+                    articles = _from_homepage(client, source.homepage)[:10]
             elif source.mode == "web":
                 _progress(source, "打开首页")
                 articles = _from_homepage(client, source.homepage)[:10]
@@ -247,11 +264,17 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
                 _progress(source, "补全图片与摘要")
                 with ThreadPoolExecutor(max_workers=4) as pool:
                     articles = list(pool.map(lambda item: _enrich_article(client, item), articles))
-            _progress(source, "翻译为中文")
-            with ThreadPoolExecutor(max_workers=4) as pool:
-                articles = list(pool.map(lambda item: _translate_article(client, item), articles))
+            if source.key != "zaobao":
+                _progress(source, "翻译为中文")
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    articles = list(pool.map(lambda item: _translate_article(client, item), articles))
             empty_message = "页面未找到可识别的新闻链接" if source.mode == "web" else "RSS 未返回可识别的新闻"
-            return articles, None if articles else empty_message
+            errors = []
+            if cover_error:
+                errors.append(f"封面：{cover_error}")
+            if not articles:
+                errors.append(empty_message)
+            return articles, "；".join(errors) or None
         except Exception as exc:
             label = "cover" if source.mode == "cover" else ("homepage" if source.mode == "web" else "rss")
             return [], f"{label}: {exc}"
@@ -285,4 +308,5 @@ def update_all() -> bool:
         _progress(phase="更新完成", completed=len(SOURCES))
         return True
     finally:
+        set_state("update_status", "idle")
         update_lock.release()

@@ -12,14 +12,15 @@ class Source:
     feeds: tuple[str, ...] = ()
     mode: str = "rss"
     cover_page: str | None = None
+    cover_id: str | None = None
 
 
 SOURCES = (
-    Source("wsj", "The Wall Street Journal", "https://www.wsj.com/", mode="cover", cover_page="https://en.kiosko.net/us/np/wsj.html"),
-    Source("washington-post", "The Washington Post", "https://www.washingtonpost.com/", mode="cover", cover_page="https://en.kiosko.net/us/np/washington_post.html"),
-    Source("economist", "The Economist", "https://www.economist.com/", mode="cover", cover_page="https://en.kiosko.net/uk/np/economist.html"),
-    Source("ft", "Financial Times", "https://www.ft.com/", mode="cover"),
-    Source("nytimes", "The New York Times", "https://www.nytimes.com/", mode="cover", cover_page="https://en.kiosko.net/us/np/newyork_times.html"),
+    Source("wsj", "The Wall Street Journal", "https://www.wsj.com/", ("https://feeds.a.dj.com/rss/RSSWorldNews.xml", "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml"), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/wsj-The_Wall_Street_Journal", cover_id="wsj"),
+    Source("washington-post", "The Washington Post", "https://www.washingtonpost.com/", ("https://feeds.washingtonpost.com/rss/world", "https://feeds.washingtonpost.com/rss/national"), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/dc_wp-The_Washington_Post", cover_id="dc_wp"),
+    Source("economist", "The Economist", "https://www.economist.com/", ("https://www.economist.com/the-world-this-week/rss.xml", "https://www.economist.com/international/rss.xml"), mode="cover"),
+    Source("ft", "Financial Times", "https://www.ft.com/", ("https://www.ft.com/world?format=rss", "https://www.ft.com/global-economy?format=rss"), mode="cover"),
+    Source("nytimes", "The New York Times", "https://www.nytimes.com/", ("https://rss.nytimes.com/services/xml/rss/nyt/World.xml",), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/ny_nyt-The_New_York_Times", cover_id="ny_nyt"),
     Source("bbc", "BBC", "https://www.bbc.com/", ("https://feeds.bbci.co.uk/news/world/rss.xml", "https://feeds.bbci.co.uk/news/rss.xml")),
     Source("zaobao", "联合早报", "https://www.zaobao.com.sg/global", mode="web"),
 )
