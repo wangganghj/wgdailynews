@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import html
 import copy
-import base64
 import json
 import logging
 import os
@@ -201,166 +200,29 @@ def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
     return results
 
 
-def _dismiss_cookie_consent(page) -> None:
-    """Accept or hide common cookie-consent overlays before capturing a page."""
-    button_patterns = [
-        re.compile(r"^(accept|accept all|agree|agree and continue|allow all|continue|got it|i agree)$", re.I),
-        re.compile(r"^(接受|接受全部|同意|全部同意|继续)$"),
-    ]
-    clicked = False
-    for frame in page.frames:
-        for role in ("button", "link"):
-            for pattern in button_patterns:
-                try:
-                    target = frame.get_by_role(role, name=pattern).first
-                    if target.is_visible(timeout=500):
-                        target.click(timeout=1500)
-                        page.wait_for_timeout(300)
-                        clicked = True
-                        break
-                except Exception:
-                    continue
-            if clicked:
-                break
-        if clicked:
-            break
-    try:
-        page.evaluate("""
-            () => {
-                const markers = /cookie|consent|privacy|gdpr|onetrust|trustarc|qc-cmp|sp_message/i;
-                document.querySelectorAll('body *').forEach(el => {
-                    const label = `${el.id} ${el.className || ''} ${el.getAttribute('aria-label') || ''}`;
-                    if (!markers.test(label)) return;
-                    const style = getComputedStyle(el);
-                    const rect = el.getBoundingClientRect();
-                    if ((style.position === 'fixed' || style.position === 'sticky') && rect.width > innerWidth * .4) {
-                        el.style.setProperty('display', 'none', 'important');
-                    }
-                });
-                document.documentElement.style.overflow = 'auto';
-                document.body.style.overflow = 'auto';
-            }
-        """)
-    except Exception:
-        pass
-
-
-def _prepare_long_screenshot(page) -> int:
-    """Trigger lazy loading and return a bounded full-page capture height."""
-    try:
-        page.evaluate("""
-            async () => {
-                const step = Math.max(700, Math.floor(innerHeight * .8));
-                const limit = Math.min(document.documentElement.scrollHeight, 16000);
-                for (let y = 0; y < limit; y += step) {
-                    scrollTo(0, y);
-                    await new Promise(resolve => setTimeout(resolve, 120));
-                }
-                scrollTo(0, 0);
-            }
-        """)
-        return int(page.evaluate("Math.min(Math.max(document.documentElement.scrollHeight, document.body.scrollHeight), 16000)"))
-    except Exception:
-        return 1100
-
-
-def _access_block_message(page) -> str | None:
-    try:
-        page_text = page.evaluate("() => (document.title + ' ' + (document.body?.innerText || '')).slice(0, 12000)")
-    except Exception:
-        return None
-    normalized = re.sub(r"\s+", " ", page_text or "").lower()
-    markers = (
-        "access is temporarily restricted",
-        "automated activity on your network",
-        "automated (bot) activity",
-        "unusual activity from your device or network",
-        "verify you are human",
-        "press and hold to confirm",
-    )
-    if any(marker in normalized for marker in markers):
-        return "网站拒绝自动化浏览器访问；已保留上一次成功的截图和标题"
-    return None
-
-
-def _from_screenshot_page(source) -> list[dict]:
-    from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-    from playwright.sync_api import sync_playwright
-
+def _fetch_kiosko_cover(client: httpx.Client, source) -> None:
+    if not source.cover_page:
+        raise ValueError("Kiosko.net 暂未收录该报纸")
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     final_path = os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg")
     temp_path = os.path.join(SCREENSHOT_DIR, f".{source.key}.tmp.jpg")
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True, args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-http2"])
-        context = browser.new_context(viewport={"width": 1440, "height": 1100}, device_scale_factor=1, user_agent=USER_AGENT)
-        page = context.new_page()
-        page.set_default_timeout(10000)
-        page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9", "Upgrade-Insecure-Requests": "1"})
-        page.route("**/*", lambda route: route.abort() if route.request.resource_type in {"font", "media"} else route.continue_())
-        navigation_ok = True
-        try:
-            page.goto(source.homepage, wait_until="commit", timeout=15000)
-        except (PlaywrightTimeoutError, PlaywrightError) as exc:
-            navigation_ok = False
-            log.warning("Navigation failed for %s; using RSS title fallback: %s", source.name, exc)
-        if not navigation_ok:
-            browser.close()
-            return []
-        try:
-            page.wait_for_timeout(5000)
-        except Exception as exc:
-            log.warning("Post-navigation wait failed for %s: %s", source.name, exc)
-        access_error = _access_block_message(page)
-        if access_error:
-            browser.close()
-            raise RuntimeError(access_error)
-        _progress(source, "处理 Cookie 弹窗")
-        _dismiss_cookie_consent(page)
-        _progress(source, "加载完整页面")
-        capture_height = _prepare_long_screenshot(page)
-        _progress(source, "生成首页截图")
-        try:
-            cdp = context.new_cdp_session(page)
-            captured = cdp.send("Page.captureScreenshot", {
-                "format": "jpeg",
-                "quality": 75,
-                "captureBeyondViewport": True,
-                "fromSurface": True,
-                "clip": {"x": 0, "y": 0, "width": 1440, "height": capture_height, "scale": 1},
-            })
-            with open(temp_path, "wb") as image_file:
-                image_file.write(base64.b64decode(captured["data"]))
-            os.replace(temp_path, final_path)
-        except Exception as exc:
-            log.warning("Screenshot failed for %s; keeping previous screenshot: %s", source.name, exc)
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-        _progress(source, "提取新闻标题")
-        try:
-            links = page.evaluate("""
-                () => Array.from(document.querySelectorAll('main a[href], article a[href], h2 a[href], h3 a[href]'))
-                    .slice(0, 250).map(a => ({
-                        title: (a.querySelector('h1,h2,h3,h4')?.innerText || a.getAttribute('aria-label') || a.innerText || '').trim(),
-                        url: a.href
-                    }))
-            """)
-        except Exception as exc:
-            log.warning("Title extraction failed for %s: %s", source.name, exc)
-            links = []
-        browser.close()
-    results, seen = [], set()
-    for item in links:
-        title = _plain(item.get("title"), 180)
-        url = item.get("url", "")
-        marker = url.split("?")[0]
-        if len(title) < 12 or marker in seen or not url.startswith("http") or marker.rstrip("/") == source.homepage.rstrip("/"):
-            continue
-        results.append({"title": title, "url": url, "image": None, "summary": "", "published": ""})
-        seen.add(marker)
-        if len(results) >= 10:
-            break
-    return results
+    page_response = client.get(source.cover_page)
+    page_response.raise_for_status()
+    soup = BeautifulSoup(page_response.text, "html.parser")
+    cover = soup.select_one("img#portada")
+    if not cover or not cover.get("src"):
+        raise ValueError("Kiosko.net 未提供今日头版")
+    image_response = client.get(urljoin(source.cover_page, cover["src"]))
+    image_response.raise_for_status()
+    if not image_response.headers.get("content-type", "").startswith("image/") or len(image_response.content) < 10_000:
+        raise ValueError("Kiosko.net 返回的头版图片无效")
+    try:
+        with open(temp_path, "wb") as image_file:
+            image_file.write(image_response.content)
+        os.replace(temp_path, final_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 def fetch_source(source) -> tuple[list[dict], str | None]:
@@ -371,9 +233,10 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
     }
     with httpx.Client(headers=headers, timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
         try:
-            if source.mode == "screenshot":
-                _progress(source, "打开首页并截图")
-                articles = _from_screenshot_page(source)
+            if source.mode == "cover":
+                _progress(source, "获取电子报头版")
+                _fetch_kiosko_cover(client, source)
+                return [], None
             elif source.mode == "web":
                 _progress(source, "打开首页")
                 articles = _from_homepage(client, source.homepage)[:10]
@@ -387,10 +250,10 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
             _progress(source, "翻译为中文")
             with ThreadPoolExecutor(max_workers=4) as pool:
                 articles = list(pool.map(lambda item: _translate_article(client, item), articles))
-            empty_message = "页面未找到可识别的新闻链接" if source.mode in {"web", "screenshot"} else "RSS 未返回可识别的新闻"
+            empty_message = "页面未找到可识别的新闻链接" if source.mode == "web" else "RSS 未返回可识别的新闻"
             return articles, None if articles else empty_message
         except Exception as exc:
-            label = "homepage" if source.mode in {"web", "screenshot"} else "rss"
+            label = "cover" if source.mode == "cover" else ("homepage" if source.mode == "web" else "rss")
             return [], f"{label}: {exc}"
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 
@@ -43,6 +44,8 @@ async def home(request: Request):
     for source in SOURCES:
         item = by_key.get(source.key, {"key": source.key, "name": source.name, "homepage": source.homepage, "articles": [], "updated_at": "", "error": None})
         item["mode"] = source.mode
+        item["has_cover"] = source.mode == "cover" and os.path.exists(os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg"))
+        item["cover_page"] = source.cover_page
         sources.append(item)
     return templates.TemplateResponse(request=request, name="index.html", context={"sources": sources, "status": get_state("update_status") or "idle", "last_updated": get_state("last_updated_at"), "timezone": TIMEZONE, "hour": UPDATE_HOUR})
 
