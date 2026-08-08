@@ -10,11 +10,7 @@
 </head>
 <body>
   <header class="hero">
-    <div>
-      <p class="eyebrow">DAILY NEWS READER</p>
-      <h1>世界正在发生什么</h1>
-      <p class="subtitle">七家媒体，每家最新十条。每天 {{ hour }}:00（{{ timezone }}）自动更新。</p>
-    </div>
+    <p class="eyebrow">DAILY NEWS READER</p>
     <button id="update-button" {% if status == 'running' %}disabled{% endif %}>
       <span class="refresh">↻</span> <span id="update-label">{{ '更新中…' if status == 'running' else '立即更新' }}</span>
     </button>
@@ -22,7 +18,6 @@
       <div class="progress-track"><span id="progress-bar"></span></div>
       <p id="progress-text">正在准备更新…</p>
     </div>
-    <p class="updated">最近更新：<span id="updated-at" data-time="{{ last_updated or '' }}">{{ last_updated or '尚未更新' }}</span></p>
   </header>
 
   <nav class="source-nav" aria-label="新闻来源">
@@ -85,6 +80,7 @@
     {% endfor %}
   </main>
   <footer>内容版权归各新闻机构所有。本页仅展示公开元数据并链接至原文。</footer>
+  <a class="back-to-top" href="#" aria-label="返回页首" title="返回页首">↑</a>
   <script src="{{ url_for('static', path='/app.js') }}"></script>
 </body>
 </html>

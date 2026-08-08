@@ -18,12 +18,14 @@ def test_home():
     with TestClient(app) as client:
         response = client.get("/")
         assert response.status_code == 200
-        assert "世界正在发生什么" in response.text
+        assert "DAILY NEWS READER" in response.text
+        assert "世界正在发生什么" not in response.text
         assert "Financial Times" in response.text
         assert "The New York Times" in response.text
         assert "The Globe and Mail" in response.text
         assert "The Vancouver Sun" in response.text
         assert 'id="progress-text"' in response.text
+        assert 'class="back-to-top"' in response.text
 
 
 def test_status_includes_progress():
