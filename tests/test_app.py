@@ -5,7 +5,6 @@ os.environ["DATABASE_PATH"] = "/tmp/daily-news-test.db"
 from fastapi.testclient import TestClient
 from app.main import app
 from app.config import SOURCES
-from app.fetcher import _access_block_message
 
 
 def test_health():
@@ -31,14 +30,8 @@ def test_status_includes_progress():
 
 
 def test_source_modes_and_order():
-    assert all(source.mode == "screenshot" for source in SOURCES[:5])
+    assert all(source.mode == "cover" for source in SOURCES[:5])
     assert [source.key for source in SOURCES[-2:]] == ["bbc", "zaobao"]
     assert "wsj-cn" not in {source.key for source in SOURCES}
-
-
-def test_access_block_message_detects_bot_challenge():
-    class BlockedPage:
-        def evaluate(self, _script):
-            return "Access is temporarily restricted. We detected automated (bot) activity on your network."
-
-    assert "保留" in _access_block_message(BlockedPage())
+    assert SOURCES[0].cover_page.endswith("/wsj.html")
+    assert SOURCES[3].cover_page is None
