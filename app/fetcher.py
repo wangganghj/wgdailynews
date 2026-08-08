@@ -264,6 +264,25 @@ def _prepare_long_screenshot(page) -> int:
         return 1100
 
 
+def _access_block_message(page) -> str | None:
+    try:
+        page_text = page.evaluate("() => (document.title + ' ' + (document.body?.innerText || '')).slice(0, 12000)")
+    except Exception:
+        return None
+    normalized = re.sub(r"\s+", " ", page_text or "").lower()
+    markers = (
+        "access is temporarily restricted",
+        "automated activity on your network",
+        "automated (bot) activity",
+        "unusual activity from your device or network",
+        "verify you are human",
+        "press and hold to confirm",
+    )
+    if any(marker in normalized for marker in markers):
+        return "网站拒绝自动化浏览器访问；已保留上一次成功的截图和标题"
+    return None
+
+
 def _from_screenshot_page(source) -> list[dict]:
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -292,6 +311,10 @@ def _from_screenshot_page(source) -> list[dict]:
             page.wait_for_timeout(5000)
         except Exception as exc:
             log.warning("Post-navigation wait failed for %s: %s", source.name, exc)
+        access_error = _access_block_message(page)
+        if access_error:
+            browser.close()
+            raise RuntimeError(access_error)
         _progress(source, "处理 Cookie 弹窗")
         _dismiss_cookie_consent(page)
         _progress(source, "加载完整页面")
@@ -351,9 +374,6 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
             if source.mode == "screenshot":
                 _progress(source, "打开首页并截图")
                 articles = _from_screenshot_page(source)
-                if not articles and source.feeds:
-                    _progress(source, "首页标题不可用，读取 RSS")
-                    articles = _from_feed(client, source)
             elif source.mode == "web":
                 _progress(source, "打开首页")
                 articles = _from_homepage(client, source.homepage)[:10]
