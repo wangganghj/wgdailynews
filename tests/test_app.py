@@ -4,6 +4,7 @@ os.environ["DATABASE_PATH"] = "/tmp/daily-news-test.db"
 
 from fastapi.testclient import TestClient
 from app.main import app
+import app.main as main_module
 from app.config import SOURCES
 
 
@@ -35,3 +36,12 @@ def test_source_modes_and_order():
     assert "wsj-cn" not in {source.key for source in SOURCES}
     assert SOURCES[0].cover_page.endswith("/wsj.html")
     assert SOURCES[3].cover_page is None
+
+
+def test_interrupted_update_is_reset(monkeypatch):
+    saved = {}
+    monkeypatch.setattr(main_module, "get_state", lambda key: "running" if key == "update_status" else None)
+    monkeypatch.setattr(main_module, "set_state", lambda key, value: saved.update({key: value}))
+
+    assert main_module._recover_interrupted_update() is True
+    assert saved == {"update_status": "idle"}
