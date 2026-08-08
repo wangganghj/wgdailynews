@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 os.environ["DATABASE_PATH"] = "/tmp/daily-news-test.db"
@@ -30,11 +31,25 @@ def test_status_includes_progress():
         assert "active" in payload["progress"]
 
 
+def test_status_repairs_stale_running_flag(monkeypatch):
+    saved = {}
+    monkeypatch.setattr(main_module, "is_update_running", lambda: False)
+    monkeypatch.setattr(main_module, "get_state", lambda key: "running" if key == "update_status" else None)
+    monkeypatch.setattr(main_module, "set_state", lambda key, value: saved.update({key: value}))
+
+    assert asyncio.run(main_module.status())["status"] == "idle"
+    assert saved["update_status"] == "idle"
+
+
 def test_source_modes_and_order():
     assert all(source.mode == "cover" for source in SOURCES[:5])
+    assert all(source.feeds for source in SOURCES[:5])
     assert [source.key for source in SOURCES[-2:]] == ["bbc", "zaobao"]
     assert "wsj-cn" not in {source.key for source in SOURCES}
-    assert SOURCES[0].cover_page.endswith("/wsj.html")
+    assert SOURCES[0].cover_id == "wsj"
+    assert SOURCES[1].cover_id == "dc_wp"
+    assert SOURCES[4].cover_id == "ny_nyt"
+    assert SOURCES[2].cover_page is None
     assert SOURCES[3].cover_page is None
 
 
