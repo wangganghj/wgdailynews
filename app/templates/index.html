@@ -39,14 +39,24 @@
       {% if source.error %}<p class="notice">本次更新失败，已保留旧内容：{{ source.error }}</p>{% endif %}
       {% if source.mode == 'cover' %}
       <div class="cover-layout">
-        {% if source.has_cover %}
-        <a class="newspaper-cover" href="{{ source.homepage }}" target="_blank" rel="noopener noreferrer">
-          <img src="/screenshots/{{ source.key }}.jpg?v={{ source.updated_at }}" alt="{{ source.name }} 电子报头版">
-        </a>
-        {% else %}
-        <div class="cover-unavailable"><strong>{{ source.name }}</strong><span>Kiosko.net 今日头版暂不可用</span></div>
-        {% endif %}
-        <p class="cover-credit">头版图片来自 <a href="{{ source.cover_page or 'https://en.kiosko.net/' }}" target="_blank" rel="noopener noreferrer">Kiosko.net</a>；点击头版访问媒体官网。</p>
+        <div class="cover-column">
+          {% if source.has_cover %}
+          <a class="newspaper-cover" href="{{ source.cover_page }}" target="_blank" rel="noopener noreferrer">
+            <img src="/screenshots/{{ source.key }}.jpg?v={{ source.updated_at }}" alt="{{ source.name }} 电子报头版">
+          </a>
+          {% else %}
+          <div class="cover-unavailable"><strong>{{ source.name }}</strong><span>Freedom Forum 暂无可用封面</span></div>
+          {% endif %}
+          <p class="cover-credit">封面来自 <a href="{{ source.cover_page or 'https://frontpages.freedomforum.org/' }}" target="_blank" rel="noopener noreferrer">Freedom Forum</a></p>
+        </div>
+        <div class="headline-list">
+          {% for article in source.articles %}
+          <article class="headline-item">
+            <span class="rank">{{ '%02d'|format(loop.index) }}</span>
+            <div><h3><a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a></h3><p class="translation title-translation">{{ article.title_zh or '中文翻译暂不可用' }}</p></div>
+          </article>
+          {% else %}<div class="empty">正在获取新闻，稍后刷新页面。</div>{% endfor %}
+        </div>
       </div>
       {% elif source.articles %}
       <div class="grid">
@@ -58,9 +68,9 @@
           </a>
           <div class="card-copy">
             <h3><a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a></h3>
-            <p class="translation title-translation">{{ article.title_zh or '中文翻译暂不可用' }}</p>
+            {% if source.key != 'zaobao' %}<p class="translation title-translation">{{ article.title_zh or '中文翻译暂不可用' }}</p>{% endif %}
             <p>{{ article.summary or '该媒体未提供公开摘要，点击标题阅读原文。' }}</p>
-            <p class="translation summary-translation">{{ article.summary_zh or ('该媒体未提供可翻译的公开摘要。' if not article.summary else '中文翻译暂不可用') }}</p>
+            {% if source.key != 'zaobao' %}<p class="translation summary-translation">{{ article.summary_zh or ('该媒体未提供可翻译的公开摘要。' if not article.summary else '中文翻译暂不可用') }}</p>{% endif %}
             {% if article.published %}<time>{{ article.published }}</time>{% endif %}
           </div>
         </article>
