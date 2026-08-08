@@ -201,6 +201,69 @@ def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
     return results
 
 
+def _dismiss_cookie_consent(page) -> None:
+    """Accept or hide common cookie-consent overlays before capturing a page."""
+    button_patterns = [
+        re.compile(r"^(accept|accept all|agree|agree and continue|allow all|continue|got it|i agree)$", re.I),
+        re.compile(r"^(接受|接受全部|同意|全部同意|继续)$"),
+    ]
+    clicked = False
+    for frame in page.frames:
+        for role in ("button", "link"):
+            for pattern in button_patterns:
+                try:
+                    target = frame.get_by_role(role, name=pattern).first
+                    if target.is_visible(timeout=500):
+                        target.click(timeout=1500)
+                        page.wait_for_timeout(300)
+                        clicked = True
+                        break
+                except Exception:
+                    continue
+            if clicked:
+                break
+        if clicked:
+            break
+    try:
+        page.evaluate("""
+            () => {
+                const markers = /cookie|consent|privacy|gdpr|onetrust|trustarc|qc-cmp|sp_message/i;
+                document.querySelectorAll('body *').forEach(el => {
+                    const label = `${el.id} ${el.className || ''} ${el.getAttribute('aria-label') || ''}`;
+                    if (!markers.test(label)) return;
+                    const style = getComputedStyle(el);
+                    const rect = el.getBoundingClientRect();
+                    if ((style.position === 'fixed' || style.position === 'sticky') && rect.width > innerWidth * .4) {
+                        el.style.setProperty('display', 'none', 'important');
+                    }
+                });
+                document.documentElement.style.overflow = 'auto';
+                document.body.style.overflow = 'auto';
+            }
+        """)
+    except Exception:
+        pass
+
+
+def _prepare_long_screenshot(page) -> int:
+    """Trigger lazy loading and return a bounded full-page capture height."""
+    try:
+        page.evaluate("""
+            async () => {
+                const step = Math.max(700, Math.floor(innerHeight * .8));
+                const limit = Math.min(document.documentElement.scrollHeight, 16000);
+                for (let y = 0; y < limit; y += step) {
+                    scrollTo(0, y);
+                    await new Promise(resolve => setTimeout(resolve, 120));
+                }
+                scrollTo(0, 0);
+            }
+        """)
+        return int(page.evaluate("Math.min(Math.max(document.documentElement.scrollHeight, document.body.scrollHeight), 16000)"))
+    except Exception:
+        return 1100
+
+
 def _from_screenshot_page(source) -> list[dict]:
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -229,10 +292,20 @@ def _from_screenshot_page(source) -> list[dict]:
             page.wait_for_timeout(5000)
         except Exception as exc:
             log.warning("Post-navigation wait failed for %s: %s", source.name, exc)
+        _progress(source, "处理 Cookie 弹窗")
+        _dismiss_cookie_consent(page)
+        _progress(source, "加载完整页面")
+        capture_height = _prepare_long_screenshot(page)
         _progress(source, "生成首页截图")
         try:
             cdp = context.new_cdp_session(page)
-            captured = cdp.send("Page.captureScreenshot", {"format": "jpeg", "quality": 78, "captureBeyondViewport": False})
+            captured = cdp.send("Page.captureScreenshot", {
+                "format": "jpeg",
+                "quality": 75,
+                "captureBeyondViewport": True,
+                "fromSurface": True,
+                "clip": {"x": 0, "y": 0, "width": 1440, "height": capture_height, "scale": 1},
+            })
             with open(temp_path, "wb") as image_file:
                 image_file.write(base64.b64decode(captured["data"]))
             os.replace(temp_path, final_path)
