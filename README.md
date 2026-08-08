@@ -49,8 +49,8 @@ cp .env.example .env
 
 ## 实现说明
 
-- WSJ、Washington Post、Economist、FT 和纽约时报使用 Chromium 生成最长 16,000px 的首页长截图，并在截图右侧列出新闻标题；截图前会自动接受或清除常见的 Cookie 弹窗。
-- 截图来源不会回退到 RSS。若网站识别到自动化访问，应用会立即跳过该来源并保留上一次成功的截图与标题，避免阻塞整次更新。
+- WSJ、Washington Post、Economist 和纽约时报显示 Kiosko.net 提供的当日电子报头版，不再启动浏览器截图，也不读取这些来源的 RSS；点击头版访问媒体官网。
+- Kiosko.net 目前未收录 Financial Times，页面会显示头版暂不可用。头版获取失败时保留上一次成功图片。
 - BBC 使用 RSS，联合早报直接读取首页；这两个来源保留图片卡片模式并显示在页面最下方。
 - 每条新闻显示原标题、原摘要及对应的简体中文翻译；手动更新会显示抓取、图片补全、翻译和缓存阶段。
 - 默认使用 Google 翻译。设置 `TRANSLATION_PROVIDER=openai` 和 `OPENAI_API_KEY` 可使用 OpenAI 获得更好的新闻语境翻译。
