@@ -49,10 +49,10 @@ cp .env.example .env
 
 ## 实现说明
 
-- WSJ、Washington Post、Economist 和纽约时报显示 Kiosko.net 提供的当日电子报头版，不再启动浏览器截图，也不读取这些来源的 RSS；点击头版访问媒体官网。
-- Kiosko.net 目前未收录 Financial Times，页面会显示头版暂不可用。头版获取失败时保留上一次成功图片。
+- WSJ、Washington Post 和纽约时报显示 Freedom Forum 提供的近期电子报头版；封面旁同时显示各媒体 RSS（失败时回退首页）取得的十条头条及中文翻译。
+- Freedom Forum 目前未收录 Financial Times 和 The Economist，页面会明确显示封面暂不可用，但两家的 TOP 10 新闻和中文翻译仍会正常更新。封面获取失败时会保留上一次成功图片。
 - BBC 使用 RSS，联合早报直接读取首页；这两个来源保留图片卡片模式并显示在页面最下方。
-- 每条新闻显示原标题、原摘要及对应的简体中文翻译；手动更新会显示抓取、图片补全、翻译和缓存阶段。
+- BBC 继续显示原标题、原摘要及简体中文翻译；联合早报内容本身为中文，不再执行或显示翻译。手动更新会显示封面、新闻抓取、图片补全、翻译和缓存阶段。
 - 默认使用 Google 翻译。设置 `TRANSLATION_PROVIDER=openai` 和 `OPENAI_API_KEY` 可使用 OpenAI 获得更好的新闻语境翻译。
 - 不绕过登录或付费墙。若来源限制访问，页面会显示错误提示，已缓存内容仍可保留。
 - 摘要来自 feed 的公开 description/content，进行纯文本清理和截断；不是全文转载，也不使用外部 AI API。
