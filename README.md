@@ -1,6 +1,6 @@
 # Daily News
 
-一个轻量的 Docker 新闻聚合网页：从 WSJ、华尔街日报中文网、The Washington Post、BBC、The Economist、联合早报、Financial Times 和 The New York Times 获取每家最多 10 条新闻，展示标题、图片、公开摘要和原文链接。
+一个轻量的 Docker 新闻聚合网页：聚合 WSJ、The Washington Post、The Economist、Financial Times、The New York Times、BBC 和联合早报。
 
 ## 启动
 
@@ -49,7 +49,8 @@ cp .env.example .env
 
 ## 实现说明
 
-- 联合早报直接读取首页；其他来源优先读取 RSS，再从文章页的 Open Graph 元数据补全图片和摘要。
+- WSJ、Washington Post、Economist、FT 和纽约时报使用 Chromium 生成首页截图，并在截图右侧列出新闻标题。
+- BBC 使用 RSS，联合早报直接读取首页；这两个来源保留图片卡片模式并显示在页面最下方。
 - 每条新闻显示原标题、原摘要及对应的简体中文翻译；手动更新会显示抓取、图片补全、翻译和缓存阶段。
 - 默认使用 Google 翻译。设置 `TRANSLATION_PROVIDER=openai` 和 `OPENAI_API_KEY` 可使用 OpenAI 获得更好的新闻语境翻译。
 - 不绕过登录或付费墙。若来源限制访问，页面会显示错误提示，已缓存内容仍可保留。
