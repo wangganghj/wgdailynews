@@ -4,6 +4,7 @@ import html
 import copy
 import json
 import logging
+import os
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,7 +15,7 @@ import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
-from app.config import OPENAI_API_KEY, OPENAI_MODEL, REQUEST_TIMEOUT, SOURCES, TRANSLATION_PROVIDER, USER_AGENT
+from app.config import OPENAI_API_KEY, OPENAI_MODEL, REQUEST_TIMEOUT, SCREENSHOT_DIR, SOURCES, TRANSLATION_PROVIDER, USER_AGENT
 from app.store import save_source, set_state
 
 log = logging.getLogger(__name__)
@@ -197,6 +198,46 @@ def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
     return results
 
 
+def _from_screenshot_page(source) -> list[dict]:
+    from playwright.sync_api import sync_playwright
+
+    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+    final_path = os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg")
+    temp_path = os.path.join(SCREENSHOT_DIR, f".{source.key}.tmp.jpg")
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True, args=["--disable-dev-shm-usage", "--no-sandbox"])
+        page = browser.new_page(viewport={"width": 1440, "height": 1100}, device_scale_factor=1)
+        page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
+        page.goto(source.homepage, wait_until="domcontentloaded", timeout=45000)
+        page.wait_for_timeout(2500)
+        _progress(source, "生成首页截图")
+        page.screenshot(path=temp_path, type="jpeg", quality=78, full_page=False)
+        _progress(source, "提取新闻标题")
+        links = page.locator("main a[href], article a[href], h2 a[href], h3 a[href]").evaluate_all("""
+            els => els.slice(0, 250).map(a => ({
+                title: (a.querySelector('h1,h2,h3,h4')?.innerText || a.getAttribute('aria-label') || a.innerText || '').trim(),
+                url: a.href
+            }))
+        """)
+        browser.close()
+    results, seen = [], set()
+    for item in links:
+        title = _plain(item.get("title"), 180)
+        url = item.get("url", "")
+        marker = url.split("?")[0]
+        if len(title) < 12 or marker in seen or not url.startswith("http") or marker.rstrip("/") == source.homepage.rstrip("/"):
+            continue
+        results.append({"title": title, "url": url, "image": None, "summary": "", "published": ""})
+        seen.add(marker)
+        if len(results) >= 10:
+            break
+    if results:
+        os.replace(temp_path, final_path)
+    elif os.path.exists(temp_path):
+        os.unlink(temp_path)
+    return results
+
+
 def fetch_source(source) -> tuple[list[dict], str | None]:
     headers = {
         "User-Agent": USER_AGENT,
@@ -205,22 +246,27 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
     }
     with httpx.Client(headers=headers, timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
         try:
-            if source.mode == "web":
+            if source.mode == "screenshot":
+                _progress(source, "打开首页并截图")
+                articles = _from_screenshot_page(source)
+            elif source.mode == "web":
                 _progress(source, "打开首页")
                 articles = _from_homepage(client, source.homepage)[:10]
             else:
                 _progress(source, "读取 RSS")
                 articles = _from_feed(client, source)
-            _progress(source, "补全图片与摘要")
-            with ThreadPoolExecutor(max_workers=4) as pool:
-                articles = list(pool.map(lambda item: _enrich_article(client, item), articles))
+            if source.mode != "screenshot":
+                _progress(source, "补全图片与摘要")
+                with ThreadPoolExecutor(max_workers=4) as pool:
+                    articles = list(pool.map(lambda item: _enrich_article(client, item), articles))
             _progress(source, "翻译为中文")
             with ThreadPoolExecutor(max_workers=4) as pool:
                 articles = list(pool.map(lambda item: _translate_article(client, item), articles))
-            empty_message = "首页未找到可识别的新闻链接" if source.mode == "web" else "RSS 未返回可识别的新闻"
+            empty_message = "页面未找到可识别的新闻链接" if source.mode in {"web", "screenshot"} else "RSS 未返回可识别的新闻"
             return articles, None if articles else empty_message
         except Exception as exc:
-            return [], f"{'homepage' if source.mode == 'web' else 'rss'}: {exc}"
+            label = "homepage" if source.mode in {"web", "screenshot"} else "rss"
+            return [], f"{label}: {exc}"
 
 
 def update_all() -> bool:
@@ -231,7 +277,7 @@ def update_all() -> bool:
     set_state("update_status", "running")
     set_state("update_started_at", started)
     try:
-        with ThreadPoolExecutor(max_workers=4) as pool:
+        with ThreadPoolExecutor(max_workers=2) as pool:
             futures = {pool.submit(fetch_source, source): source for source in SOURCES}
             for completed, future in enumerate(as_completed(futures), start=1):
                 source = futures[future]

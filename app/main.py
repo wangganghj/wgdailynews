@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import SOURCES, TIMEZONE, UPDATE_HOUR, UPDATE_MINUTE
+from app.config import SCREENSHOT_DIR, SOURCES, TIMEZONE, UPDATE_HOUR, UPDATE_MINUTE
 from app.fetcher import get_progress, update_all
 from app.store import get_state, init_db, load_sources
 
@@ -33,12 +33,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Daily News", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/screenshots", StaticFiles(directory=SCREENSHOT_DIR, check_dir=False), name="screenshots")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     by_key = {item["key"]: item for item in load_sources()}
-    sources = [by_key.get(source.key, {"key": source.key, "name": source.name, "homepage": source.homepage, "articles": [], "updated_at": "", "error": None}) for source in SOURCES]
+    sources = []
+    for source in SOURCES:
+        item = by_key.get(source.key, {"key": source.key, "name": source.name, "homepage": source.homepage, "articles": [], "updated_at": "", "error": None})
+        item["mode"] = source.mode
+        sources.append(item)
     return templates.TemplateResponse(request=request, name="index.html", context={"sources": sources, "status": get_state("update_status") or "idle", "last_updated": get_state("last_updated_at"), "timezone": TIMEZONE, "hour": UPDATE_HOUR})
 
 
