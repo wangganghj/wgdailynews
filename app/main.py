@@ -57,6 +57,7 @@ async def home(request: Request):
         item["mode"] = source.mode
         item["has_cover"] = source.mode == "cover" and os.path.exists(os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg"))
         item["cover_page"] = source.cover_page
+        item["cover_provider"] = source.cover_provider
         sources.append(item)
     return templates.TemplateResponse(request=request, name="index.html", context={"sources": sources, "status": get_state("update_status") or "idle", "last_updated": get_state("last_updated_at"), "timezone": TIMEZONE, "hour": UPDATE_HOUR})
 

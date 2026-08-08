@@ -13,14 +13,17 @@ class Source:
     mode: str = "rss"
     cover_page: str | None = None
     cover_id: str | None = None
+    cover_provider: str = "freedom_forum"
 
 
 SOURCES = (
     Source("wsj", "The Wall Street Journal", "https://www.wsj.com/", ("https://feeds.a.dj.com/rss/RSSWorldNews.xml", "https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml"), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/wsj-The_Wall_Street_Journal", cover_id="wsj"),
     Source("washington-post", "The Washington Post", "https://www.washingtonpost.com/", ("https://feeds.washingtonpost.com/rss/world", "https://feeds.washingtonpost.com/rss/national"), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/dc_wp-The_Washington_Post", cover_id="dc_wp"),
-    Source("economist", "The Economist", "https://www.economist.com/", ("https://www.economist.com/the-world-this-week/rss.xml", "https://www.economist.com/international/rss.xml"), mode="cover"),
-    Source("ft", "Financial Times", "https://www.ft.com/", ("https://www.ft.com/world?format=rss", "https://www.ft.com/global-economy?format=rss"), mode="cover"),
+    Source("economist", "The Economist", "https://www.economist.com/", ("https://www.economist.com/the-world-this-week/rss.xml", "https://www.economist.com/international/rss.xml"), mode="cover", cover_page="https://www.economist.com/", cover_provider="homepage"),
+    Source("ft", "Financial Times", "https://www.ft.com/", ("https://www.ft.com/world?format=rss", "https://www.ft.com/global-economy?format=rss"), mode="cover", cover_page="https://www.frontpages.com/financial-times/", cover_provider="frontpages"),
     Source("nytimes", "The New York Times", "https://www.nytimes.com/", ("https://rss.nytimes.com/services/xml/rss/nyt/World.xml",), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/ny_nyt-The_New_York_Times", cover_id="ny_nyt"),
+    Source("globe-and-mail", "The Globe and Mail", "https://www.theglobeandmail.com/", ("https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/canada/", "https://www.theglobeandmail.com/arc/outboundfeeds/rss/category/world/"), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/can_tgam-The_Globe_and_Mail", cover_id="can_tgam"),
+    Source("vancouver-sun", "The Vancouver Sun", "https://vancouversun.com/", ("https://vancouversun.com/category/news/feed/", "https://vancouversun.com/feed/"), mode="cover", cover_page="https://frontpages.freedomforum.org/newspapers/can_vs-The_Vancouver_Sun", cover_id="can_vs"),
     Source("bbc", "BBC", "https://www.bbc.com/", ("https://feeds.bbci.co.uk/news/world/rss.xml", "https://feeds.bbci.co.uk/news/rss.xml")),
     Source("zaobao", "联合早报", "https://www.zaobao.com.sg/global", mode="web"),
 )

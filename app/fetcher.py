@@ -213,7 +213,7 @@ def _fetch_freedom_forum_cover(client: httpx.Client, source) -> None:
     image_response = None
     # Weekend editions and upload times vary. Try today, then the preceding
     # week, while retaining the last successful local cover on any failure.
-    for days_ago in range(8):
+    for days_ago in range(15):
         issue_date = (datetime.now(timezone.utc) - timedelta(days=days_ago)).date().isoformat()
         image_url = f"https://d2dr22b2lm4tvw.cloudfront.net/{source.cover_id}/{issue_date}/front-page-medium.jpg"
         candidate = client.get(image_url)
@@ -221,7 +221,7 @@ def _fetch_freedom_forum_cover(client: httpx.Client, source) -> None:
             image_response = candidate
             break
     if image_response is None:
-        raise ValueError("Freedom Forum 最近 8 天没有可用封面")
+        raise ValueError("Freedom Forum 最近 15 天没有可用封面")
     try:
         with open(temp_path, "wb") as image_file:
             image_file.write(image_response.content)
@@ -229,6 +229,87 @@ def _fetch_freedom_forum_cover(client: httpx.Client, source) -> None:
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
+
+
+def _save_cover(content: bytes, source) -> None:
+    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+    final_path = os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg")
+    temp_path = os.path.join(SCREENSHOT_DIR, f".{source.key}.tmp.jpg")
+    try:
+        with open(temp_path, "wb") as image_file:
+            image_file.write(content)
+        os.replace(temp_path, final_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def _fetch_frontpages_cover(client: httpx.Client, source) -> None:
+    response = client.get(source.cover_page)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    candidates = []
+    og_image = _meta(soup, ("property", "og:image"))
+    if og_image and "financial-times" in og_image.lower():
+        candidates.append(og_image)
+    candidates.extend(re.findall(r'https://www\.frontpages\.com/g/[^"\']*financial-times[^"\']*', response.text, re.I))
+    candidates = list(dict.fromkeys(candidates))
+    if not candidates:
+        raise ValueError("FrontPages.com 未提供 Financial Times 封面")
+    image = None
+    for image_url in candidates:
+        candidate = client.get(image_url)
+        if candidate.status_code == 200 and candidate.headers.get("content-type", "").startswith("image/") and len(candidate.content) >= 10_000:
+            image = candidate
+            break
+    if image is None:
+        raise ValueError("FrontPages.com 返回的封面图片无效")
+    _save_cover(image.content, source)
+
+
+def _capture_homepage(source) -> None:
+    # Playwright otherwise waits indefinitely for some publisher web fonts.
+    os.environ.setdefault("PW_TEST_SCREENSHOT_NO_FONTS_READY", "1")
+    from playwright.sync_api import sync_playwright
+
+    os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+    temp_path = os.path.join(SCREENSHOT_DIR, f".{source.key}.tmp.jpg")
+    final_path = os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg")
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True, args=["--disable-dev-shm-usage", "--no-sandbox"])
+            context = browser.new_context(viewport={"width": 1440, "height": 1600}, locale="en-GB")
+            page = context.new_page()
+            page.goto(source.homepage, wait_until="domcontentloaded", timeout=45_000)
+            challenge_text = (page.title() + " " + page.locator("body").inner_text(timeout=3000)).lower()
+            if any(marker in challenge_text for marker in ("performing security verification", "verify you are human", "unusual activity", "access denied")):
+                raise ValueError("The Economist 返回安全验证页面，已保留上一次有效截图")
+            for label in ("Accept all", "Accept All", "I agree", "Agree", "Continue", "Close"):
+                try:
+                    page.get_by_role("button", name=re.compile(f"^{re.escape(label)}$", re.I)).first.click(timeout=1200)
+                except Exception:
+                    pass
+            page.evaluate("""() => {
+              const selectors = ['#onetrust-banner-sdk', '#onetrust-consent-sdk', '[class*="cookie-banner"]', '[class*="CookieBanner"]', '[aria-label*="cookie" i]', '[role="dialog"]'];
+              for (const selector of selectors) for (const node of document.querySelectorAll(selector)) node.remove();
+              document.documentElement.style.overflow = 'auto'; document.body.style.overflow = 'auto';
+            }""")
+            page.wait_for_timeout(1200)
+            page.screenshot(path=temp_path, type="jpeg", quality=82, full_page=False, timeout=20_000)
+            browser.close()
+        os.replace(temp_path, final_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def _fetch_cover(client: httpx.Client, source) -> None:
+    if source.cover_provider == "frontpages":
+        _fetch_frontpages_cover(client, source)
+    elif source.cover_provider == "homepage":
+        _capture_homepage(source)
+    else:
+        _fetch_freedom_forum_cover(client, source)
 
 
 def fetch_source(source) -> tuple[list[dict], str | None]:
@@ -241,9 +322,10 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
         try:
             cover_error = None
             if source.mode == "cover":
-                _progress(source, "从 Freedom Forum 获取封面")
+                provider = {"frontpages": "FrontPages.com", "homepage": "媒体首页"}.get(source.cover_provider, "Freedom Forum")
+                _progress(source, f"从 {provider} 获取封面")
                 try:
-                    _fetch_freedom_forum_cover(client, source)
+                    _fetch_cover(client, source)
                 except Exception as exc:
                     cover_error = str(exc)
                     log.warning("Cover failed for %s: %s", source.name, exc)

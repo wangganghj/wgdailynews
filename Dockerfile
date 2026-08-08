@@ -5,6 +5,7 @@ WORKDIR /app
 RUN addgroup --system app && adduser --system --ingroup app app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m playwright install --with-deps chromium
 COPY app ./app
 RUN mkdir -p /data && chown -R app:app /app /data
 USER app

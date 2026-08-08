@@ -47,7 +47,11 @@
           {% else %}
           <div class="cover-unavailable"><strong>{{ source.name }}</strong><span>Freedom Forum 暂无可用封面</span></div>
           {% endif %}
-          <p class="cover-credit">封面来自 <a href="{{ source.cover_page or 'https://frontpages.freedomforum.org/' }}" target="_blank" rel="noopener noreferrer">Freedom Forum</a></p>
+          <p class="cover-credit">
+            {% if source.cover_provider == 'frontpages' %}封面来自 <a href="{{ source.cover_page }}" target="_blank" rel="noopener noreferrer">FrontPages.com</a>
+            {% elif source.cover_provider == 'homepage' %}图片来自 <a href="{{ source.cover_page }}" target="_blank" rel="noopener noreferrer">The Economist 首页截图</a>
+            {% else %}封面来自 <a href="{{ source.cover_page or 'https://frontpages.freedomforum.org/' }}" target="_blank" rel="noopener noreferrer">Freedom Forum</a>{% endif %}
+          </p>
         </div>
         <div class="headline-list">
           {% for article in source.articles %}
