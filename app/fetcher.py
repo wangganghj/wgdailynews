@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import copy
+import base64
 import json
 import logging
 import os
@@ -92,6 +93,8 @@ def _from_feed(client: httpx.Client, source) -> list[dict]:
             url, title = entry.get("link"), _plain(entry.get("title"), 180)
             if url and title:
                 results.append({"title": title, "url": url, "image": _feed_image(entry), "summary": _plain(entry.get("summary") or entry.get("description") or entry.get("content", [{}])[0].get("value")), "published": entry.get("published") or entry.get("updated") or ""})
+        if len(results) >= 10:
+            break
     deduped, seen = [], set()
     for article in results:
         marker = article["url"].split("?")[0]
@@ -199,26 +202,56 @@ def _from_homepage(client: httpx.Client, homepage: str) -> list[dict]:
 
 
 def _from_screenshot_page(source) -> list[dict]:
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
     from playwright.sync_api import sync_playwright
 
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
     final_path = os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg")
     temp_path = os.path.join(SCREENSHOT_DIR, f".{source.key}.tmp.jpg")
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True, args=["--disable-dev-shm-usage", "--no-sandbox"])
-        page = browser.new_page(viewport={"width": 1440, "height": 1100}, device_scale_factor=1)
-        page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
-        page.goto(source.homepage, wait_until="domcontentloaded", timeout=45000)
-        page.wait_for_timeout(2500)
+        browser = playwright.chromium.launch(headless=True, args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-http2"])
+        context = browser.new_context(viewport={"width": 1440, "height": 1100}, device_scale_factor=1, user_agent=USER_AGENT)
+        page = context.new_page()
+        page.set_default_timeout(10000)
+        page.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9", "Upgrade-Insecure-Requests": "1"})
+        page.route("**/*", lambda route: route.abort() if route.request.resource_type in {"font", "media"} else route.continue_())
+        navigation_ok = True
+        try:
+            page.goto(source.homepage, wait_until="commit", timeout=15000)
+        except (PlaywrightTimeoutError, PlaywrightError) as exc:
+            navigation_ok = False
+            log.warning("Navigation failed for %s; using RSS title fallback: %s", source.name, exc)
+        if not navigation_ok:
+            browser.close()
+            return []
+        try:
+            page.wait_for_timeout(5000)
+        except Exception as exc:
+            log.warning("Post-navigation wait failed for %s: %s", source.name, exc)
         _progress(source, "生成首页截图")
-        page.screenshot(path=temp_path, type="jpeg", quality=78, full_page=False)
+        try:
+            cdp = context.new_cdp_session(page)
+            captured = cdp.send("Page.captureScreenshot", {"format": "jpeg", "quality": 78, "captureBeyondViewport": False})
+            with open(temp_path, "wb") as image_file:
+                image_file.write(base64.b64decode(captured["data"]))
+            os.replace(temp_path, final_path)
+        except Exception as exc:
+            log.warning("Screenshot failed for %s; keeping previous screenshot: %s", source.name, exc)
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
         _progress(source, "提取新闻标题")
-        links = page.locator("main a[href], article a[href], h2 a[href], h3 a[href]").evaluate_all("""
-            els => els.slice(0, 250).map(a => ({
-                title: (a.querySelector('h1,h2,h3,h4')?.innerText || a.getAttribute('aria-label') || a.innerText || '').trim(),
-                url: a.href
-            }))
-        """)
+        try:
+            links = page.evaluate("""
+                () => Array.from(document.querySelectorAll('main a[href], article a[href], h2 a[href], h3 a[href]'))
+                    .slice(0, 250).map(a => ({
+                        title: (a.querySelector('h1,h2,h3,h4')?.innerText || a.getAttribute('aria-label') || a.innerText || '').trim(),
+                        url: a.href
+                    }))
+            """)
+        except Exception as exc:
+            log.warning("Title extraction failed for %s: %s", source.name, exc)
+            links = []
         browser.close()
     results, seen = [], set()
     for item in links:
@@ -231,10 +264,6 @@ def _from_screenshot_page(source) -> list[dict]:
         seen.add(marker)
         if len(results) >= 10:
             break
-    if results:
-        os.replace(temp_path, final_path)
-    elif os.path.exists(temp_path):
-        os.unlink(temp_path)
     return results
 
 
@@ -249,6 +278,9 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
             if source.mode == "screenshot":
                 _progress(source, "打开首页并截图")
                 articles = _from_screenshot_page(source)
+                if not articles and source.feeds:
+                    _progress(source, "首页标题不可用，读取 RSS")
+                    articles = _from_feed(client, source)
             elif source.mode == "web":
                 _progress(source, "打开首页")
                 articles = _from_homepage(client, source.homepage)[:10]
