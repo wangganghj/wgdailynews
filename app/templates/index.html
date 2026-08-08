@@ -36,25 +36,19 @@
         <div><span class="index">{{ '%02d'|format(loop.index) }}</span><h2>{{ source.name }}</h2></div>
         <a class="publisher" href="{{ source.homepage }}" target="_blank" rel="noopener noreferrer">访问网站 ↗</a>
       </div>
-      {% if source.error %}<p class="notice">本次抓取失败，可能受访问限制：{{ source.error }}</p>{% endif %}
-      {% if source.articles %}
-      {% if source.mode == 'screenshot' %}
-      <div class="screenshot-layout">
-        <a class="homepage-shot" href="{{ source.homepage }}" target="_blank" rel="noopener noreferrer">
-          <img src="/screenshots/{{ source.key }}.jpg?v={{ source.updated_at }}" alt="{{ source.name }} 首页截图">
+      {% if source.error %}<p class="notice">本次更新失败，已保留旧内容：{{ source.error }}</p>{% endif %}
+      {% if source.mode == 'cover' %}
+      <div class="cover-layout">
+        {% if source.has_cover %}
+        <a class="newspaper-cover" href="{{ source.homepage }}" target="_blank" rel="noopener noreferrer">
+          <img src="/screenshots/{{ source.key }}.jpg?v={{ source.updated_at }}" alt="{{ source.name }} 电子报头版">
         </a>
-        <ol class="headline-list">
-          {% for article in source.articles %}
-          <li>
-            <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">
-              <span class="original-headline">{{ article.title }}</span>
-              <span class="translated-headline">{{ article.title_zh or '中文翻译暂不可用' }}</span>
-            </a>
-          </li>
-          {% endfor %}
-        </ol>
+        {% else %}
+        <div class="cover-unavailable"><strong>{{ source.name }}</strong><span>Kiosko.net 今日头版暂不可用</span></div>
+        {% endif %}
+        <p class="cover-credit">头版图片来自 <a href="{{ source.cover_page or 'https://en.kiosko.net/' }}" target="_blank" rel="noopener noreferrer">Kiosko.net</a>；点击头版访问媒体官网。</p>
       </div>
-      {% else %}
+      {% elif source.articles %}
       <div class="grid">
         {% for article in source.articles %}
         <article class="card">
@@ -72,7 +66,6 @@
         </article>
         {% endfor %}
       </div>
-      {% endif %}
       {% else %}<div class="empty">正在获取新闻，稍后刷新页面。</div>{% endif %}
     </section>
     {% endfor %}
