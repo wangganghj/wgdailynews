@@ -6,6 +6,7 @@
   <title>Daily News · 今日新闻</title>
   <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='/progress.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/screenshot.css') }}">
 </head>
 <body>
   <header class="hero">
@@ -37,6 +38,23 @@
       </div>
       {% if source.error %}<p class="notice">本次抓取失败，可能受访问限制：{{ source.error }}</p>{% endif %}
       {% if source.articles %}
+      {% if source.mode == 'screenshot' %}
+      <div class="screenshot-layout">
+        <a class="homepage-shot" href="{{ source.homepage }}" target="_blank" rel="noopener noreferrer">
+          <img src="/screenshots/{{ source.key }}.jpg?v={{ source.updated_at }}" alt="{{ source.name }} 首页截图">
+        </a>
+        <ol class="headline-list">
+          {% for article in source.articles %}
+          <li>
+            <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">
+              <span class="original-headline">{{ article.title }}</span>
+              <span class="translated-headline">{{ article.title_zh or '中文翻译暂不可用' }}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+      {% else %}
       <div class="grid">
         {% for article in source.articles %}
         <article class="card">
@@ -54,6 +72,7 @@
         </article>
         {% endfor %}
       </div>
+      {% endif %}
       {% else %}<div class="empty">正在获取新闻，稍后刷新页面。</div>{% endif %}
     </section>
     {% endfor %}
