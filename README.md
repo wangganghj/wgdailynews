@@ -1,16 +1,27 @@
-# Daily News
+# Daily News · 今日全球新闻聚合与 AI 速读
 
-一个轻量的 Docker 新闻聚合网页：聚合 WSJ、The Washington Post、The Economist、Financial Times、The New York Times、The Globe and Mail、The Vancouver Sun、BBC 和联合早报。
+一个轻量、现代化、智能化的 Docker 新闻聚合与早报平台：
+- **主流大报封面与头条**：WSJ、The Washington Post、The Economist、Financial Times、The New York Times、The Globe and Mail、The Vancouver Sun。
+- **全球综合与财经资讯**：BBC、联合早报、Reuters（路透社）、Bloomberg（彭博社）、Nikkei Asia（日经亚洲）、TechCrunch 与 Hacker News。
+- **AI 智能速读（Daily AI Briefing）**：基于 Gemini / OpenAI 大模型聚合全网 Top 5 核心热点快讯与宏观综述。
+- **现代化 UI / UX**：支持深色/浅色双色温主题、全局即时搜索与高亮、分类标签筛选、稍后阅读收藏夹、字号调节与 Web Speech 语音朗读（TTS）。
+- **自动化推送**：更新完成后支持一键推送每日早报到 Telegram 频道或 Webhook（飞书/企业微信/Discord）。
 
-## 启动
+---
+
+## 🚀 启动与部署
+
+### 1. Docker Compose 极速启动
 
 ```bash
 docker compose up -d --build
 ```
 
-浏览器打开 <http://localhost:8000>。首次启动会在后台抓取新闻；页面右上角可以手动更新。
+浏览器打开 <http://localhost:8000>。首次启动会自动在后台抓取新闻，页面右上角亦可点击「立即更新」。
 
-## VPS 部署
+---
+
+### 2. VPS 生产部署
 
 仓库的 GitHub Actions 会为 `main` 分支自动构建 `linux/amd64` 和 `linux/arm64` 镜像并发布至：
 
@@ -18,47 +29,53 @@ docker compose up -d --build
 ghcr.io/wangganghj/wgdailynews:latest
 ```
 
-在 VPS 上只需复制 `compose.yaml` 和可选的 `.env`，然后执行：
+在 VPS 上只需准备 `compose.yaml` 和可选的 `.env`，然后执行：
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-更新到最新版本：
+---
 
-```bash
-docker compose pull && docker compose up -d
-```
+## ⚙️ 环境变量与个性化配置
 
-如果 GHCR package 不是公开状态，需要先执行 `docker login ghcr.io`，或在仓库 Package settings 中将其改为 Public。`compose.yaml` 也允许用 `NEWS_IMAGE` 覆盖镜像地址。
-
-## 定时更新
-
-默认每天 `08:00`（`America/Vancouver`）更新。复制环境变量示例后可调整：
+复制环境变量示例文件进行配置：
 
 ```bash
 cp .env.example .env
 ```
 
-- `TIMEZONE`: IANA 时区，例如 `Asia/Shanghai`
-- `UPDATE_HOUR`: 0–23
-- `UPDATE_MINUTE`: 0–59
+| 环境变量 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `TIMEZONE` | `America/Vancouver` | IANA 时区（如 `Asia/Shanghai`） |
+| `UPDATE_HOUR` | `8` | 每天定时更新小时（0–23） |
+| `UPDATE_MINUTE` | `0` | 每天定时更新分钟（0–59） |
+| `TRANSLATION_PROVIDER`| `google` | 翻译引擎：`google`（免 Key）、`gemini`、`openai`、`deepl` |
+| `GEMINI_API_KEY` | - | Google Gemini API Key（推荐用于高品质翻译与 AI 早报） |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini 模型名称 |
+| `OPENAI_API_KEY` | - | OpenAI API Key |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI 模型名称 |
+| `DEEPL_API_KEY` | - | DeepL 翻译 API Key |
+| `ENABLE_AI_BRIEFING` | `true` | 是否启用每日 AI 智能简报 |
+| `TELEGRAM_BOT_TOKEN` | - | Telegram Bot Token（用于早报推送） |
+| `TELEGRAM_CHAT_ID` | - | Telegram 目标 Chat/Channel ID |
+| `WEBHOOK_URL` | - | 自定义 Webhook 推送地址（Discord/飞书/企业微信） |
 
-数据保存在 Docker volume `news-data` 中，容器重启后不会丢失。
+---
 
-## 实现说明
+## ✨ 核心功能与亮点
 
-- WSJ、Washington Post、纽约时报、The Globe and Mail 和 The Vancouver Sun 显示 Freedom Forum 提供的近期电子报头版；Financial Times 封面来自 FrontPages.com。
-- The Economist 使用其官网首页截图，并自动处理常见 Cookie/对话框遮罩。所有封面旁都继续显示 RSS（失败时回退首页）取得的十条头条及中文翻译；封面失败时保留上一次成功图片。
-- BBC 使用 RSS，联合早报直接读取首页；这两个来源保留图片卡片模式并显示在页面最下方。
-- BBC 继续显示原标题、原摘要及简体中文翻译；联合早报内容本身为中文，不再执行或显示翻译。手动更新会显示封面、新闻抓取、图片补全、翻译和缓存阶段。
-- 默认使用 Google 翻译。设置 `TRANSLATION_PROVIDER=openai` 和 `OPENAI_API_KEY` 可使用 OpenAI 获得更好的新闻语境翻译。
-- 不绕过登录或付费墙。若来源限制访问，页面会显示错误提示，已缓存内容仍可保留。
-- 摘要来自 feed 的公开 description/content，进行纯文本清理和截断；不是全文转载，也不使用外部 AI API。
-- 为避免重复的定时任务和 SQLite 写入冲突，容器固定使用一个 Uvicorn worker。
+1. **AI 智能速读卡片**：顶部生成结构化每日热点，支持一键语音播报（听早报）、一键复制 Markdown 格式。
+2. **即时全局搜索**：支持中英文关键词毫秒级过滤，高亮匹配内容。
+3. **分类快速导航**：支持按「全部来源」、「全球时政」、「财经商业」、「科技前沿」、「亚太要闻」过滤。
+4. **稍后阅读 / 收藏夹**：点击文章卡片右上角 ⭐ 即可加入收藏夹，支持导出链接与本地持久化。
+5. **深色/浅色双色温主题**：支持夜间模式与白天模式无缝切换。
+6. **Web Speech API 语音朗读**：支持在浏览器中一键朗读任意文章摘要或今日早报。
 
-## 本地开发与测试
+---
+
+## 💻 本地开发与测试
 
 ```bash
 python -m venv .venv
@@ -68,12 +85,20 @@ DATABASE_PATH=/tmp/daily-news.db uvicorn app.main:app --reload
 pytest
 ```
 
-## API
+---
 
-- `POST /api/update`：开始后台更新
-- `GET /api/status`：查看更新状态
-- `GET /health`：容器健康检查
+## 📡 API 接口
 
-## 合规提示
+- `GET /`：新闻仪表盘首页
+- `GET /api/status`：查看当前更新状态与实时进度
+- `POST /api/update`：手动触发后台全量更新
+- `GET /api/briefing`：获取最新一份 AI 每日早报数据
+- `POST /api/briefing/generate`：手动重新生成 AI 早报
+- `POST /api/notify`：手动触发 Telegram / Webhook 早报推送
+- `GET /health`：健康检查接口
 
-请仅用于个人阅读，并遵守各媒体的服务条款、robots 规则和版权要求。内容版权归原出版商所有。
+---
+
+## ⚖️ 合规与免责提示
+
+本项目仅供个人学习与日常阅读使用，严格遵守各媒体公开 robots 规则与服务条款，不绕过付费墙。所有内容版权归原出版商所有。

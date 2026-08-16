@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import html
 import copy
+import html
 import json
 import logging
 import os
@@ -15,8 +15,23 @@ import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
-from app.config import OPENAI_API_KEY, OPENAI_MODEL, REQUEST_TIMEOUT, SCREENSHOT_DIR, SOURCES, TRANSLATION_PROVIDER, USER_AGENT
-from app.store import save_source, set_state
+from app.config import (
+    DEEPL_API_KEY,
+    ENABLE_AI_BRIEFING,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    OPENAI_API_KEY,
+    OPENAI_MODEL,
+    REQUEST_TIMEOUT,
+    SCREENSHOT_DIR,
+    SOURCES,
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID,
+    TRANSLATION_PROVIDER,
+    USER_AGENT,
+    WEBHOOK_URL,
+)
+from app.store import get_latest_briefing, save_briefing, save_source, set_state
 
 log = logging.getLogger(__name__)
 update_lock = threading.Lock()
@@ -87,17 +102,28 @@ def _feed_image(entry) -> str | None:
 def _from_feed(client: httpx.Client, source) -> list[dict]:
     results = []
     for feed_url in source.feeds:
-        response = client.get(feed_url)
-        response.raise_for_status()
-        parsed = feedparser.parse(response.content)
-        if parsed.bozo and not parsed.entries:
-            raise ValueError(str(parsed.bozo_exception))
-        for entry in parsed.entries:
-            url, title = entry.get("link"), _plain(entry.get("title"), 180)
-            if url and title:
-                results.append({"title": title, "url": url, "image": _feed_image(entry), "summary": _plain(entry.get("summary") or entry.get("description") or entry.get("content", [{}])[0].get("value")), "published": entry.get("published") or entry.get("updated") or ""})
-        if len(results) >= 10:
-            break
+        try:
+            response = client.get(feed_url)
+            response.raise_for_status()
+            parsed = feedparser.parse(response.content)
+            if parsed.bozo and not parsed.entries:
+                continue
+            for entry in parsed.entries:
+                url = entry.get("link")
+                title = _plain(entry.get("title"), 180)
+                if url and title:
+                    results.append({
+                        "title": title,
+                        "url": url,
+                        "image": _feed_image(entry),
+                        "summary": _plain(entry.get("summary") or entry.get("description") or (entry.get("content", [{}])[0].get("value") if entry.get("content") else "")),
+                        "published": entry.get("published") or entry.get("updated") or "",
+                    })
+            if len(results) >= 10:
+                break
+        except Exception as exc:
+            log.warning("Feed fetch error for %s (%s): %s", source.name, feed_url, exc)
+            continue
     deduped, seen = [], set()
     for article in results:
         marker = article["url"].split("?")[0]
@@ -161,17 +187,58 @@ def _openai_translate(client: httpx.Client, title: str, summary: str) -> tuple[s
     return data.get("title_zh", ""), data.get("summary_zh", "")
 
 
+def _gemini_translate(client: httpx.Client, title: str, summary: str) -> tuple[str, str]:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    prompt = f"""你是一位资深专业新闻翻译官。请将以下新闻标题和摘要翻译为简体中文（要求信达雅、符合中文新闻语境、保留专有名词与机构）：
+标题: {title}
+摘要: {summary}
+
+请严格按如下 JSON 格式输出，不要有额外内容：
+{{"title_zh": "中文标题", "summary_zh": "中文摘要"}}"""
+    response = client.post(
+        url,
+        json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}},
+    )
+    response.raise_for_status()
+    result_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    data = json.loads(result_text)
+    return data.get("title_zh", ""), data.get("summary_zh", "")
+
+
+def _deepl_translate(client: httpx.Client, text: str) -> str:
+    if not text or _mostly_chinese(text):
+        return text
+    api_url = "https://api-free.deepl.com/v2/translate" if ":fx" in DEEPL_API_KEY else "https://api.deepl.com/v2/translate"
+    response = client.post(
+        api_url,
+        headers={"Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}"},
+        data={"text": text[:4000], "target_lang": "ZH"},
+    )
+    response.raise_for_status()
+    translations = response.json().get("translations", [])
+    return translations[0]["text"] if translations else text
+
+
 def _translate_article(client: httpx.Client, article: dict) -> dict:
     title, summary = article.get("title", ""), article.get("summary", "")
     try:
-        if TRANSLATION_PROVIDER == "openai" and OPENAI_API_KEY:
+        if TRANSLATION_PROVIDER == "gemini" and GEMINI_API_KEY:
+            article["title_zh"], article["summary_zh"] = _gemini_translate(client, title, summary)
+        elif TRANSLATION_PROVIDER == "openai" and OPENAI_API_KEY:
             article["title_zh"], article["summary_zh"] = _openai_translate(client, title, summary)
+        elif TRANSLATION_PROVIDER == "deepl" and DEEPL_API_KEY:
+            article["title_zh"] = _deepl_translate(client, title)
+            article["summary_zh"] = _deepl_translate(client, summary)
         else:
             article["title_zh"] = _google_translate(client, title)
             article["summary_zh"] = _google_translate(client, summary)
     except Exception as exc:
-        log.warning("Translation failed for %s: %s", article.get("url"), exc)
-        article["title_zh"], article["summary_zh"] = "", ""
+        log.warning("Primary translation failed for %s (%s), trying fallback: %s", article.get("url"), TRANSLATION_PROVIDER, exc)
+        try:
+            article["title_zh"] = _google_translate(client, title)
+            article["summary_zh"] = _google_translate(client, summary)
+        except Exception:
+            article["title_zh"], article["summary_zh"] = "", ""
     return article
 
 
@@ -211,15 +278,16 @@ def _fetch_freedom_forum_cover(client: httpx.Client, source) -> None:
     final_path = os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg")
     temp_path = os.path.join(SCREENSHOT_DIR, f".{source.key}.tmp.jpg")
     image_response = None
-    # Weekend editions and upload times vary. Try today, then the preceding
-    # week, while retaining the last successful local cover on any failure.
     for days_ago in range(15):
         issue_date = (datetime.now(timezone.utc) - timedelta(days=days_ago)).date().isoformat()
         image_url = f"https://d2dr22b2lm4tvw.cloudfront.net/{source.cover_id}/{issue_date}/front-page-medium.jpg"
-        candidate = client.get(image_url)
-        if candidate.status_code == 200 and candidate.headers.get("content-type", "").startswith("image/") and len(candidate.content) >= 10_000:
-            image_response = candidate
-            break
+        try:
+            candidate = client.get(image_url)
+            if candidate.status_code == 200 and candidate.headers.get("content-type", "").startswith("image/") and len(candidate.content) >= 10_000:
+                image_response = candidate
+                break
+        except Exception:
+            continue
     if image_response is None:
         raise ValueError("Freedom Forum 最近 15 天没有可用封面")
     try:
@@ -258,17 +326,19 @@ def _fetch_frontpages_cover(client: httpx.Client, source) -> None:
         raise ValueError("FrontPages.com 未提供 Financial Times 封面")
     image = None
     for image_url in candidates:
-        candidate = client.get(image_url)
-        if candidate.status_code == 200 and candidate.headers.get("content-type", "").startswith("image/") and len(candidate.content) >= 10_000:
-            image = candidate
-            break
+        try:
+            candidate = client.get(image_url)
+            if candidate.status_code == 200 and candidate.headers.get("content-type", "").startswith("image/") and len(candidate.content) >= 10_000:
+                image = candidate
+                break
+        except Exception:
+            continue
     if image is None:
         raise ValueError("FrontPages.com 返回的封面图片无效")
     _save_cover(image.content, source)
 
 
 def _capture_homepage(source) -> None:
-    # Playwright otherwise waits indefinitely for some publisher web fonts.
     os.environ.setdefault("PW_TEST_SCREENSHOT_NO_FONTS_READY", "1")
     from playwright.sync_api import sync_playwright
 
@@ -362,6 +432,165 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
             return [], f"{label}: {exc}"
 
 
+def generate_ai_briefing(sources_map: dict[str, list[dict]]) -> dict:
+    """Synthesizes top global headlines across all sources into a cohesive AI Briefing."""
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now_iso = datetime.now(timezone.utc).isoformat()
+    
+    # Collect top items
+    items_to_summarize = []
+    for source in SOURCES:
+        articles = sources_map.get(source.key, [])
+        for a in articles[:3]:
+            title = a.get("title_zh") or a.get("title") or ""
+            summary = a.get("summary_zh") or a.get("summary") or ""
+            if title:
+                items_to_summarize.append(f"【{source.name}】{title}：{summary}")
+
+    joined_text = "\n".join(items_to_summarize[:30])
+    
+    # Try Gemini if API Key available
+    if GEMINI_API_KEY:
+        try:
+            with httpx.Client(timeout=30) as client:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+                prompt = f"""你是顶级全球新闻主编。请根据以下各大媒体（WSJ、FT、路透社、BBC、经济学人等）今日最新头条新闻，生成一份高水准的「每日全球新闻热点速读」：
+{joined_text}
+
+请严格按如下 JSON 格式输出，不要包含任何 markdown 代码块外部文字：
+{{
+  "overview": "用一两句精炼的话概括今日全球主要宏观大势与核心氛围",
+  "points": [
+    {{"tag": "国际/地缘/财经/科技/亚太", "title": "热点事件核心提要", "summary": "简短分析与关键细节（50字内）", "sources": "WSJ, BBC等"}},
+    {{"tag": "...", "title": "...", "summary": "...", "sources": "..."}},
+    {{"tag": "...", "title": "...", "summary": "...", "sources": "..."}},
+    {{"tag": "...", "title": "...", "summary": "...", "sources": "..."}},
+    {{"tag": "...", "title": "...", "summary": "...", "sources": "..."}}
+  ]
+}}"""
+                resp = client.post(url, json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}})
+                resp.raise_for_status()
+                res = json.loads(resp.json()["candidates"][0]["content"]["parts"][0]["text"])
+                briefing_data = {
+                    "date": date_str,
+                    "content": res.get("overview", "今日全球核心热点汇聚。"),
+                    "summary_points": res.get("points", []),
+                    "created_at": now_iso,
+                }
+                save_briefing(date_str, briefing_data["content"], briefing_data["summary_points"], now_iso)
+                return briefing_data
+        except Exception as exc:
+            log.warning("Gemini AI Briefing generation failed: %s", exc)
+
+    # Try OpenAI if API Key available
+    if OPENAI_API_KEY:
+        try:
+            with httpx.Client(timeout=30) as client:
+                resp = client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                    json={
+                        "model": OPENAI_MODEL,
+                        "temperature": 0.3,
+                        "response_format": {"type": "json_object"},
+                        "messages": [
+                            {"role": "system", "content": "你是资深全球新闻主编。根据提供的今日新闻头条，提炼出全网 Top 5 核心热点简报。返回 JSON: {overview: string, points: [{tag: string, title: string, summary: string, sources: string}]}"},
+                            {"role": "user", "content": f"今日头条列表：\n{joined_text}"},
+                        ],
+                    },
+                )
+                resp.raise_for_status()
+                res = json.loads(resp.json()["choices"][0]["message"]["content"])
+                briefing_data = {
+                    "date": date_str,
+                    "content": res.get("overview", "今日全球核心热点速读。"),
+                    "summary_points": res.get("points", []),
+                    "created_at": now_iso,
+                }
+                save_briefing(date_str, briefing_data["content"], briefing_data["summary_points"], now_iso)
+                return briefing_data
+        except Exception as exc:
+            log.warning("OpenAI AI Briefing generation failed: %s", exc)
+
+    # Smart Rule-Based Fallback Synthesis (No Key required)
+    extracted_points = []
+    category_tags = {"wsj": "财经", "ft": "金融", "economist": "政经", "bloomberg": "市场", "reuters": "国际", "nytimes": "全球", "bbc": "时政", "zaobao": "亚太", "techcrunch": "科技", "hackernews": "技术"}
+    for source in SOURCES:
+        arts = sources_map.get(source.key, [])
+        if arts:
+            a = arts[0]
+            title = a.get("title_zh") or a.get("title") or ""
+            summary = a.get("summary_zh") or a.get("summary") or ""
+            if title:
+                extracted_points.append({
+                    "tag": category_tags.get(source.key, "综合"),
+                    "title": title,
+                    "summary": (summary[:90] + "…") if len(summary) > 90 else summary,
+                    "sources": source.name,
+                })
+        if len(extracted_points) >= 5:
+            break
+
+    briefing_data = {
+        "date": date_str,
+        "content": f"已自动汇聚 {len(SOURCES)} 家国际核心媒体今日重要头条与前沿动态。",
+        "summary_points": extracted_points,
+        "created_at": now_iso,
+    }
+    save_briefing(date_str, briefing_data["content"], briefing_data["summary_points"], now_iso)
+    return briefing_data
+
+
+def send_notifications(briefing: dict | None = None) -> None:
+    """Dispatches daily news briefing to Telegram or Webhooks if configured."""
+    if not briefing:
+        briefing = get_latest_briefing()
+    if not briefing:
+        return
+
+    title = f"📰 Daily News 今日早报 · {briefing.get('date', '')}"
+    overview = briefing.get("content", "")
+    points = briefing.get("summary_points", [])
+
+    # Format Telegram Markdown message
+    tg_lines = [f"*{title}*", f"_{overview}_\n"]
+    for i, pt in enumerate(points, 1):
+        tag = f"[{pt.get('tag', '热点')}] " if pt.get("tag") else ""
+        tg_lines.append(f"{i}. *{tag}{pt.get('title', '')}*")
+        if pt.get("summary"):
+            tg_lines.append(f"   {pt.get('summary')}")
+        if pt.get("sources"):
+            tg_lines.append(f"   _(来源: {pt.get('sources')})_")
+
+    tg_text = "\n".join(tg_lines)
+
+    with httpx.Client(timeout=15) as client:
+        # Telegram Notification
+        if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+            try:
+                url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+                client.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": tg_text, "parse_mode": "Markdown"})
+                log.info("Telegram notification dispatched successfully.")
+            except Exception as exc:
+                log.warning("Telegram notification failed: %s", exc)
+
+        # Webhook Notification (Discord / Feishu / WeCom / Custom)
+        if WEBHOOK_URL:
+            try:
+                payload = {
+                    "msgtype": "text",
+                    "text": {"content": tg_text},
+                    "title": title,
+                    "overview": overview,
+                    "points": points,
+                    "date": briefing.get("date"),
+                }
+                client.post(WEBHOOK_URL, json=payload)
+                log.info("Webhook notification dispatched successfully.")
+            except Exception as exc:
+                log.warning("Webhook notification failed: %s", exc)
+
+
 def update_all() -> bool:
     if not update_lock.acquire(blocking=False):
         return False
@@ -369,6 +598,7 @@ def update_all() -> bool:
     _reset_progress()
     set_state("update_status", "running")
     set_state("update_started_at", started)
+    all_articles_map = {}
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
             futures = {pool.submit(fetch_source, source): source for source in SOURCES}
@@ -377,14 +607,26 @@ def update_all() -> bool:
                 now = datetime.now(timezone.utc).isoformat()
                 try:
                     articles, error = future.result()
+                    all_articles_map[source.key] = articles
                     _progress(source, "保存缓存", completed - 1)
                     save_source(source.key, source.name, source.homepage, articles, now, error)
                 except Exception as exc:
                     log.exception("Failed to update %s", source.name)
+                    all_articles_map[source.key] = []
                     save_source(source.key, source.name, source.homepage, [], now, str(exc))
                 with progress_lock:
                     progress_state["active"].pop(source.key, None)
                 _progress(completed=completed, phase="保存缓存")
+
+        if ENABLE_AI_BRIEFING:
+            _progress(phase="生成 AI 今日简报")
+            try:
+                briefing = generate_ai_briefing(all_articles_map)
+                _progress(phase="发送通知推送")
+                send_notifications(briefing)
+            except Exception as exc:
+                log.warning("Briefing or notification post-process error: %s", exc)
+
         set_state("last_updated_at", datetime.now(timezone.utc).isoformat())
         set_state("update_status", "idle")
         _progress(phase="更新完成", completed=len(SOURCES))

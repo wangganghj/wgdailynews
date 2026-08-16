@@ -43,6 +43,15 @@ def init_db() -> None:
                 value TEXT NOT NULL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ai_briefing (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT UNIQUE NOT NULL,
+                content TEXT NOT NULL,
+                summary_points_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
 
 
 def save_source(source_key: str, source_name: str, homepage: str, articles: list[dict], updated_at: str, error: str | None = None) -> None:
@@ -79,3 +88,34 @@ def load_sources() -> list[dict]:
         }
         for row in rows
     ]
+
+
+def save_briefing(date_str: str, content: str, summary_points: list[str] | list[dict], created_at: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO ai_briefing (date, content, summary_points_json, created_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(date) DO UPDATE SET
+               content=excluded.content,
+               summary_points_json=excluded.summary_points_json,
+               created_at=excluded.created_at""",
+            (date_str, content, json.dumps(summary_points, ensure_ascii=False), created_at),
+        )
+
+
+def get_latest_briefing() -> dict | None:
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM ai_briefing ORDER BY id DESC LIMIT 1").fetchone()
+    if not row:
+        return None
+    try:
+        points = json.loads(row["summary_points_json"])
+    except Exception:
+        points = []
+    return {
+        "id": row["id"],
+        "date": row["date"],
+        "content": row["content"],
+        "summary_points": points,
+        "created_at": row["created_at"],
+    }

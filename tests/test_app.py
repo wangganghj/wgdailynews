@@ -6,7 +6,8 @@ os.environ["DATABASE_PATH"] = "/tmp/daily-news-test.db"
 from fastapi.testclient import TestClient
 from app.main import app
 import app.main as main_module
-from app.config import SOURCES
+from app.config import SOURCES, CATEGORIES
+from app.store import init_db, save_briefing, get_latest_briefing
 
 
 def test_health():
@@ -19,19 +20,21 @@ def test_home():
         response = client.get("/")
         assert response.status_code == 200
         assert "DAILY NEWS READER" in response.text
-        assert "世界正在发生什么" not in response.text
         assert "Financial Times" in response.text
         assert "The New York Times" in response.text
         assert "The Globe and Mail" in response.text
         assert "The Vancouver Sun" in response.text
         assert 'id="progress-text"' in response.text
         assert 'class="back-to-top"' in response.text
+        assert 'id="ai-briefing-section"' in response.text
+        assert 'id="search-input"' in response.text
+        assert 'id="bookmarks-drawer"' in response.text
 
 
 def test_status_includes_progress():
     with TestClient(app) as client:
         payload = client.get("/api/status").json()
-        assert payload["progress"]["total"] == 9
+        assert payload["progress"]["total"] == len(SOURCES)
         assert "active" in payload["progress"]
 
 
@@ -48,7 +51,7 @@ def test_status_repairs_stale_running_flag(monkeypatch):
 def test_source_modes_and_order():
     assert all(source.mode == "cover" for source in SOURCES[:7])
     assert all(source.feeds for source in SOURCES[:7])
-    assert [source.key for source in SOURCES[-2:]] == ["bbc", "zaobao"]
+    assert [source.key for source in SOURCES[7:9]] == ["bbc", "zaobao"]
     assert "wsj-cn" not in {source.key for source in SOURCES}
     assert SOURCES[0].cover_id == "wsj"
     assert SOURCES[1].cover_id == "dc_wp"
@@ -66,3 +69,20 @@ def test_interrupted_update_is_reset(monkeypatch):
 
     assert main_module._recover_interrupted_update() is True
     assert saved == {"update_status": "idle"}
+
+
+def test_briefing_api():
+    init_db()
+    save_briefing(
+        "2026-08-16",
+        "今日全球主要宏观要闻速读",
+        [{"tag": "财经", "title": "全球市场动态", "summary": "市场主要走势概览", "sources": "WSJ, FT"}],
+        "2026-08-16T10:00:00Z"
+    )
+    with TestClient(app) as client:
+        res = client.get("/api/briefing")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["briefing"] is not None
+        assert data["briefing"]["date"] == "2026-08-16"
+        assert len(data["briefing"]["summary_points"]) == 1
