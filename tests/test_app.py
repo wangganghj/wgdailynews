@@ -52,7 +52,7 @@ def test_source_modes_and_order():
     assert SOURCES[0].cover_id == "wsj"
     assert SOURCES[1].cover_provider == "frontpages"
     assert SOURCES[4].cover_id == "ny_nyt"
-    assert SOURCES[2].cover_provider == "homepage"
+    assert SOURCES[2].cover_provider in ("economist_cdn", "homepage")
     assert SOURCES[3].cover_provider == "frontpages"
     assert SOURCES[5].cover_id == "can_tgam"
     assert SOURCES[6].cover_id == "can_vs"

@@ -48,11 +48,12 @@ SOURCES = (
         "https://www.economist.com/",
         (
             "https://www.economist.com/the-world-this-week/rss.xml",
-            "https://www.economist.com/international/rss.xml",
+            "https://www.economist.com/printedition/rss.xml",
+            "https://www.economist.com/leaders/rss.xml",
         ),
         mode="cover",
-        cover_page="https://www.economist.com/",
-        cover_provider="homepage",
+        cover_page="https://www.economist.com/weeklyedition",
+        cover_provider="economist_cdn",
     ),
     Source(
         "ft",
@@ -118,31 +119,34 @@ SOURCES = (
         "reuters",
         "Reuters",
         "https://www.reuters.com/",
-        ("https://news.google.com/rss/search?q=site:reuters.com&hl=en-US&gl=US&ceid=US:en",),
+        (
+            "https://www.bing.com/news/search?q=site:reuters.com&format=rss",
+            "https://news.google.com/rss/search?q=site:reuters.com&hl=en-US&gl=US&ceid=US:en",
+        ),
     ),
     Source(
         "bloomberg",
         "Bloomberg",
         "https://www.bloomberg.com/",
-        ("https://news.google.com/rss/search?q=site:bloomberg.com&hl=en-US&gl=US&ceid=US:en",),
+        (
+            "https://www.bing.com/news/search?q=site:bloomberg.com&format=rss",
+            "https://news.google.com/rss/search?q=site:bloomberg.com&hl=en-US&gl=US&ceid=US:en",
+        ),
     ),
     Source(
         "nikkei",
         "Nikkei Asia",
         "https://asia.nikkei.com/",
-        ("https://asia.nikkei.com/rss/feed/nar",),
+        (
+            "https://www.bing.com/news/search?q=site:asia.nikkei.com&format=rss",
+            "https://news.google.com/rss/search?q=site:asia.nikkei.com&hl=en-US&gl=US&ceid=US:en",
+        ),
     ),
     Source(
         "techcrunch",
         "TechCrunch",
         "https://techcrunch.com/",
         ("https://techcrunch.com/feed/",),
-    ),
-    Source(
-        "hackernews",
-        "Hacker News",
-        "https://news.ycombinator.com/",
-        ("https://news.ycombinator.com/rss",),
     ),
 )
 

@@ -45,7 +45,7 @@
           {% endif %}
           <p class="cover-credit">
             {% if source.cover_provider == 'frontpages' %}封面来自 <a href="{{ source.cover_page }}" target="_blank" rel="noopener noreferrer">FrontPages.com</a>
-            {% elif source.cover_provider == 'homepage' %}图片来自 <a href="{{ source.cover_page }}" target="_blank" rel="noopener noreferrer">The Economist 首页截图</a>
+            {% elif source.cover_provider in ('economist_cdn', 'homepage') %}封面来自 <a href="{{ source.cover_page }}" target="_blank" rel="noopener noreferrer">The Economist 官方封面</a>
             {% else %}封面来自 <a href="{{ source.cover_page or 'https://frontpages.freedomforum.org/' }}" target="_blank" rel="noopener noreferrer">Freedom Forum</a>{% endif %}
           </p>
         </div>

@@ -66,9 +66,10 @@ button:disabled {
   top: 0;
   z-index: 10;
   display: flex;
-  gap: 26px;
-  overflow: auto;
-  padding: 15px 4vw;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 24px;
+  padding: 14px 4vw;
   background: rgba(244, 240, 231, .94);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -81,6 +82,7 @@ button:disabled {
   font-size: 13px;
   text-decoration: none;
   font-weight: 500;
+  line-height: 1.4;
 }
 
 .source-nav a:hover {

@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import threading
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
@@ -91,6 +92,10 @@ def _feed_image(entry) -> str | None:
     for enclosure in entry.get("enclosures", []):
         if enclosure.get("type", "").startswith("image/") and enclosure.get("href"):
             return enclosure["href"]
+    # Check Bing News or custom tags in feed entry
+    for key, val in entry.items():
+        if key.lower().endswith("image") and isinstance(val, str) and val.startswith("http"):
+            return val
     img = BeautifulSoup(entry.get("summary", ""), "html.parser").find("img")
     return img.get("src") if img else None
 
@@ -106,6 +111,11 @@ def _from_feed(client: httpx.Client, source) -> list[dict]:
                 continue
             for entry in parsed.entries:
                 url = entry.get("link")
+                if url and "bing.com/news/apiclick" in url and "&url=" in url:
+                    try:
+                        url = urllib.parse.unquote(url.split("&url=")[1].split("&")[0])
+                    except Exception:
+                        pass
                 title = _plain(entry.get("title"), 180)
                 if url and title:
                     results.append({
@@ -363,6 +373,31 @@ def _fetch_frontpages_cover(client: httpx.Client, source) -> None:
     _save_cover(image.content, source)
 
 
+def _fetch_economist_cover(client: httpx.Client, source) -> None:
+    """Fetches the official weekly print magazine cover of The Economist from CDN."""
+    now = datetime.now(timezone.utc)
+    headers = {"Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"}
+    image = None
+    for days in range(21):
+        target_date = now - timedelta(days=days)
+        datestr = target_date.strftime("%Y%m%d")
+        for suffix in ("CUD001", "DE_US", "DE_UK", "DE_AP"):
+            img_url = f"https://www.economist.com/img/b/1000/1333/90/media-assets/image/{datestr}_{suffix}.jpg"
+            try:
+                candidate = client.get(img_url, headers=headers)
+                if candidate.status_code == 200 and len(candidate.content) >= 10_000:
+                    image = candidate
+                    break
+            except Exception:
+                continue
+        if image:
+            break
+
+    if image is None:
+        raise ValueError("The Economist 最近未找到可用周刊封面")
+    _save_cover(image.content, source)
+
+
 def _capture_homepage(source) -> None:
     os.environ.setdefault("PW_TEST_SCREENSHOT_NO_FONTS_READY", "1")
     from playwright.sync_api import sync_playwright
@@ -401,6 +436,8 @@ def _capture_homepage(source) -> None:
 def _fetch_cover(client: httpx.Client, source) -> None:
     if source.cover_provider == "frontpages":
         _fetch_frontpages_cover(client, source)
+    elif source.cover_provider == "economist_cdn":
+        _fetch_economist_cover(client, source)
     elif source.cover_provider == "homepage":
         _capture_homepage(source)
     else:
@@ -417,7 +454,11 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
         try:
             cover_error = None
             if source.mode == "cover":
-                provider = {"frontpages": "FrontPages.com", "homepage": "媒体首页"}.get(source.cover_provider, "Freedom Forum")
+                provider = {
+                    "frontpages": "FrontPages.com",
+                    "economist_cdn": "The Economist 官方封面",
+                    "homepage": "媒体首页",
+                }.get(source.cover_provider, "Freedom Forum")
                 _progress(source, f"从 {provider} 获取封面")
                 try:
                     _fetch_cover(client, source)
