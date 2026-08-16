@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import (
-    CATEGORIES,
     SCREENSHOT_DIR,
     SOURCES,
     TIMEZONE,
@@ -21,14 +20,11 @@ from app.config import (
     UPDATE_MINUTE,
 )
 from app.fetcher import (
-    generate_ai_briefing,
     get_progress,
     is_update_running,
-    send_notifications,
     update_all,
 )
 from app.store import (
-    get_latest_briefing,
     get_state,
     init_db,
     load_sources,
@@ -88,20 +84,16 @@ async def home(request: Request):
             },
         )
         item["mode"] = source.mode
-        item["category"] = getattr(source, "category", "general")
         item["has_cover"] = source.mode == "cover" and os.path.exists(os.path.join(SCREENSHOT_DIR, f"{source.key}.jpg"))
         item["cover_page"] = source.cover_page
         item["cover_provider"] = source.cover_provider
         sources.append(item)
-    
-    briefing = get_latest_briefing()
+
     return templates.TemplateResponse(
         request=request,
         name="index.html",
         context={
             "sources": sources,
-            "categories": CATEGORIES,
-            "briefing": briefing,
             "status": get_state("update_status") or "idle",
             "last_updated": get_state("last_updated_at"),
             "timezone": TIMEZONE,
@@ -124,29 +116,6 @@ async def status():
     if get_state("update_status") != actual_status:
         set_state("update_status", actual_status)
     return {"status": actual_status, "last_updated_at": get_state("last_updated_at"), "progress": get_progress()}
-
-
-@app.get("/api/briefing")
-async def get_briefing_api():
-    briefing = get_latest_briefing()
-    return {"briefing": briefing}
-
-
-@app.post("/api/briefing/generate")
-async def generate_briefing_api():
-    sources = load_sources()
-    sources_map = {s["key"]: s.get("articles", []) for s in sources}
-    briefing = generate_ai_briefing(sources_map)
-    return {"success": True, "briefing": briefing}
-
-
-@app.post("/api/notify")
-async def test_notify_api():
-    briefing = get_latest_briefing()
-    if not briefing:
-        return JSONResponse({"success": False, "message": "暂无可用简报"}, status_code=400)
-    send_notifications(briefing)
-    return {"success": True, "message": "已触发推送通知"}
 
 
 @app.get("/health")

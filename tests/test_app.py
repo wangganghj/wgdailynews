@@ -6,8 +6,7 @@ os.environ["DATABASE_PATH"] = "/tmp/daily-news-test.db"
 from fastapi.testclient import TestClient
 from app.main import app
 import app.main as main_module
-from app.config import SOURCES, CATEGORIES
-from app.store import init_db, save_briefing, get_latest_briefing
+from app.config import SOURCES
 
 
 def test_health():
@@ -26,9 +25,6 @@ def test_home():
         assert "The Vancouver Sun" in response.text
         assert 'id="progress-text"' in response.text
         assert 'class="back-to-top"' in response.text
-        assert 'id="ai-briefing-section"' in response.text
-        assert 'id="search-input"' in response.text
-        assert 'id="bookmarks-drawer"' in response.text
 
 
 def test_status_includes_progress():
@@ -54,7 +50,7 @@ def test_source_modes_and_order():
     assert [source.key for source in SOURCES[7:9]] == ["bbc", "zaobao"]
     assert "wsj-cn" not in {source.key for source in SOURCES}
     assert SOURCES[0].cover_id == "wsj"
-    assert SOURCES[1].cover_id == "dc_wp"
+    assert SOURCES[1].cover_provider == "frontpages"
     assert SOURCES[4].cover_id == "ny_nyt"
     assert SOURCES[2].cover_provider == "homepage"
     assert SOURCES[3].cover_provider == "frontpages"
@@ -69,20 +65,3 @@ def test_interrupted_update_is_reset(monkeypatch):
 
     assert main_module._recover_interrupted_update() is True
     assert saved == {"update_status": "idle"}
-
-
-def test_briefing_api():
-    init_db()
-    save_briefing(
-        "2026-08-16",
-        "今日全球主要宏观要闻速读",
-        [{"tag": "财经", "title": "全球市场动态", "summary": "市场主要走势概览", "sources": "WSJ, FT"}],
-        "2026-08-16T10:00:00Z"
-    )
-    with TestClient(app) as client:
-        res = client.get("/api/briefing")
-        assert res.status_code == 200
-        data = res.json()
-        assert data["briefing"] is not None
-        assert data["briefing"]["date"] == "2026-08-16"
-        assert len(data["briefing"]["summary_points"]) == 1

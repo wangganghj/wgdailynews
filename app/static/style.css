@@ -1,46 +1,10 @@
 :root {
-  --paper: #f5f2eb;
-  --paper-elevated: #ffffff;
-  --ink: #1a1917;
-  --muted: #68645a;
-  --rule: #dcd6c8;
+  --paper: #f4f0e7;
+  --ink: #191915;
+  --muted: #6b685f;
+  --rule: #cbc4b7;
   --accent: #b5412f;
-  --accent-hover: #973222;
-  --ai-bg: #faf7ef;
-  --ai-border: #e6ddcb;
-  --tag-bg: #ece6d8;
-  --highlight-bg: #fff176;
-  --highlight-color: #111;
-  --card-shadow: 0 3px 12px rgba(0, 0, 0, 0.04);
-  --font-base: 15px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-pill: 999px;
-  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-:root[data-theme="dark"] {
-  --paper: #131518;
-  --paper-elevated: #1b1e23;
-  --ink: #eae7e0;
-  --muted: #9c978d;
-  --rule: #2a2e36;
-  --accent: #e65a46;
-  --accent-hover: #f57361;
-  --ai-bg: #181b20;
-  --ai-border: #2c323d;
-  --tag-bg: #262a33;
-  --highlight-bg: #d97706;
-  --highlight-color: #ffffff;
-  --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
-:root.font-large {
-  --font-base: 17px;
-}
-
-:root.font-xlarge {
-  --font-base: 19px;
+  --card: #fbf9f4;
 }
 
 * {
@@ -49,416 +13,80 @@
 
 html {
   scroll-behavior: smooth;
-  font-size: var(--font-base);
 }
 
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  line-height: 1.6;
-  transition: background var(--transition), color var(--transition);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-/* ==========================================================================
-   Header & Hero
-   ========================================================================== */
 .hero {
   max-width: 1500px;
   margin: auto;
-  padding: 48px 4vw 24px;
-}
-
-.hero-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-  flex-wrap: wrap;
-  padding-bottom: 28px;
-  border-bottom: 2px solid var(--ink);
-}
-
-.brand {
-  max-width: 650px;
+  padding: 72px 4vw 38px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  border-bottom: 1px solid var(--ink);
 }
 
 .eyebrow {
-  font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.22em;
+  font: 700 12px/1.2 ui-monospace, monospace;
+  letter-spacing: .2em;
   color: var(--accent);
-  margin: 0 0 10px;
-}
-
-h1 {
-  font: 600 clamp(32px, 5vw, 54px)/1.08 "Newsreader", "Songti SC", Georgia, serif;
-  letter-spacing: -0.035em;
-  margin: 0 0 12px;
-}
-
-.subtitle {
-  color: var(--muted);
-  font-size: 14px;
   margin: 0;
 }
 
-.header-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 14px;
-}
-
-.search-box {
-  display: flex;
-  align-items: center;
-  position: relative;
-  width: 100%;
-  max-width: 380px;
-  background: var(--paper-elevated);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-pill);
-  padding: 6px 14px;
-  transition: border-color var(--transition), box-shadow var(--transition);
-}
-
-.search-box:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(181, 65, 47, 0.15);
-}
-
-.search-icon {
-  font-size: 14px;
-  opacity: 0.6;
-  margin-right: 8px;
-}
-
-.search-box input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: var(--ink);
-  font-size: 13.5px;
-  outline: none;
-}
-
-.search-box input::placeholder {
-  color: var(--muted);
-  opacity: 0.75;
-}
-
-.btn-icon {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 50%;
-}
-
-.btn-icon:hover {
-  color: var(--accent);
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.btn-pill,
-.btn-primary,
-.btn-sm,
-.btn-player {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--rule);
-  background: var(--paper-elevated);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 8px 15px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: all var(--transition);
-  user-select: none;
-}
-
-.btn-pill:hover,
-.btn-sm:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: translateY(-1px);
-}
-
-.btn-primary {
+button {
+  align-self: end;
+  border: 1px solid var(--ink);
   background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
+  color: white;
+  border-radius: 999px;
+  padding: 13px 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.btn-primary:hover {
+button:hover {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
-  transform: translateY(-1px);
 }
 
-.btn-primary:disabled {
-  opacity: 0.55;
+button:disabled {
+  opacity: .55;
   cursor: wait;
-  transform: none;
 }
 
-.badge {
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 99px;
-  min-width: 18px;
-  text-align: center;
-}
-
-/* ==========================================================================
-   AI Briefing Section
-   ========================================================================== */
-.ai-briefing-card {
-  margin: 28px 0 16px;
-  background: var(--ai-bg);
-  border: 1px solid var(--ai-border);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--radius-md);
-  padding: 22px 26px;
-  box-shadow: var(--card-shadow);
-  transition: all var(--transition);
-}
-
-.briefing-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding-bottom: 14px;
-  border-bottom: 1px dashed var(--rule);
-}
-
-.briefing-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.ai-badge {
-  background: linear-gradient(135deg, var(--accent), #e07a5f);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  letter-spacing: 0.05em;
-}
-
-.briefing-header h2 {
-  font: 600 20px "Newsreader", "Songti SC", Georgia, serif;
-  margin: 0;
-  color: var(--ink);
-}
-
-.briefing-date {
-  font-size: 12px;
-  color: var(--muted);
-  font-family: ui-monospace, monospace;
-}
-
-.briefing-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.briefing-body {
-  padding-top: 16px;
-  transition: all 0.3s ease;
-}
-
-.briefing-body.collapsed {
-  display: none;
-}
-
-.briefing-overview {
-  font-size: 15px;
-  line-height: 1.7;
-  color: var(--ink);
-  margin: 0 0 18px;
-  font-weight: 500;
-}
-
-.briefing-points-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-}
-
-.briefing-point-card {
-  background: var(--paper-elevated);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  transition: transform var(--transition), border-color var(--transition);
-}
-
-.briefing-point-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--accent);
-}
-
-.point-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.point-tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent);
-  background: var(--tag-bg);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.point-sources {
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.point-title {
-  font-size: 14.5px;
-  font-weight: 600;
-  margin: 0 0 6px;
-  line-height: 1.35;
-  color: var(--ink);
-}
-
-.point-summary {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 0;
-  line-height: 1.5;
-}
-
-/* ==========================================================================
-   Category Filter Bar & Search Result Stat
-   ========================================================================== */
-.category-filter-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding-top: 14px;
-}
-
-.category-tabs {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 4px 0;
-}
-
-.cat-pill {
-  border: 1px solid var(--rule);
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: all var(--transition);
-  white-space: nowrap;
-}
-
-.cat-pill:hover {
-  color: var(--ink);
-  border-color: var(--ink);
-}
-
-.cat-pill.active {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-
-.search-result-stat {
-  font-size: 13px;
-  color: var(--muted);
-  background: var(--tag-bg);
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-}
-
-.btn-link {
-  background: transparent;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  text-decoration: underline;
-  margin-left: 6px;
-}
-
-/* ==========================================================================
-   Sticky Source Nav
-   ========================================================================== */
 .source-nav {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 10;
   display: flex;
-  gap: 22px;
-  overflow-x: auto;
-  padding: 12px 4vw;
-  background: var(--paper);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  gap: 26px;
+  overflow: auto;
+  padding: 15px 4vw;
+  background: rgba(244, 240, 231, .94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--rule);
-  border-top: 1px solid var(--rule);
-  transition: background var(--transition);
 }
 
 .source-nav a {
   white-space: nowrap;
-  color: var(--muted);
+  color: var(--ink);
   font-size: 13px;
-  font-weight: 500;
   text-decoration: none;
-  padding-bottom: 2px;
-  border-bottom: 2px solid transparent;
-  transition: all var(--transition);
+  font-weight: 500;
 }
 
-.source-nav a:hover,
-.source-nav a.active {
+.source-nav a:hover {
   color: var(--accent);
-  border-bottom-color: var(--accent);
 }
 
-.source-nav a.hidden {
-  display: none;
-}
-
-/* ==========================================================================
-   Main Content & Source Sections
-   ========================================================================== */
 main {
   max-width: 1500px;
   margin: auto;
@@ -466,538 +94,165 @@ main {
 }
 
 .source {
-  padding: 56px 0 68px;
-  border-bottom: 1px solid var(--rule);
-  scroll-margin-top: 50px;
+  padding: 68px 0 78px;
+  border-bottom: 1px solid var(--ink);
+  scroll-margin-top: 52px;
 }
 
-.source.hidden {
-  display: none !important;
+.section-heading,
+.section-heading > div {
+  display: flex;
+  align-items: baseline;
 }
 
 .section-heading {
-  display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 26px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.heading-left {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
+  margin-bottom: 32px;
 }
 
 .index {
-  font: 700 13px ui-monospace, monospace;
+  font: 700 12px ui-monospace, monospace;
   color: var(--accent);
+  margin-right: 16px;
 }
 
 .section-heading h2 {
-  font: 600 clamp(26px, 3.5vw, 44px) "Newsreader", "Songti SC", Georgia, serif;
+  font: 500 clamp(28px, 4vw, 54px) Georgia, "Songti SC", serif;
   margin: 0;
-  color: var(--ink);
-}
-
-.cat-tag {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  background: var(--tag-bg);
-  padding: 3px 8px;
-  border-radius: 4px;
 }
 
 .publisher {
-  color: var(--muted);
+  color: var(--ink);
   font-size: 13px;
+  text-underline-offset: 4px;
   text-decoration: none;
-  border-bottom: 1px dotted var(--muted);
+  border-bottom: 1px dotted var(--ink);
 }
 
 .publisher:hover {
   color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
-/* ==========================================================================
-   Cover Mode Layout
-   ========================================================================== */
-.cover-layout {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 36px;
-}
-
-.cover-column {
-  position: sticky;
-  top: 60px;
-  align-self: start;
-}
-
-.newspaper-cover {
-  display: block;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  border: 1px solid var(--rule);
-  transition: transform var(--transition);
-}
-
-.newspaper-cover:hover {
-  transform: scale(1.02);
-}
-
-.newspaper-cover img {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.cover-unavailable {
-  aspect-ratio: 3/4;
-  background: var(--tag-bg);
-  border: 1px dashed var(--rule);
-  border-radius: var(--radius-sm);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 20px;
-  color: var(--muted);
-}
-
-.cover-credit {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 8px;
-}
-
-.cover-credit a {
-  color: inherit;
-}
-
-.headline-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.headline-item {
-  display: grid;
-  grid-template-columns: 32px 1fr auto;
-  gap: 14px;
-  align-items: start;
-  padding: 14px 16px;
-  background: var(--paper-elevated);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  transition: all var(--transition);
-}
-
-.headline-item:hover {
   border-color: var(--accent);
-  box-shadow: var(--card-shadow);
 }
 
-.headline-item.hidden {
-  display: none !important;
-}
-
-.rank {
-  font: 700 11px ui-monospace, monospace;
-  color: var(--accent);
-  background: var(--tag-bg);
-  padding: 3px 6px;
-  border-radius: 4px;
-  text-align: center;
-}
-
-.headline-content h3 {
-  font: 600 16.5px/1.3 "Newsreader", "Songti SC", Georgia, serif;
-  margin: 0 0 6px;
-}
-
-.headline-content h3 a {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.headline-content h3 a:hover {
-  color: var(--accent);
-}
-
-.translation {
-  font-size: 13.5px;
-  color: var(--muted);
-  margin: 0;
-  line-height: 1.5;
-}
-
-.title-translation {
-  font-weight: 500;
-  color: var(--accent);
-  opacity: 0.92;
-}
-
-.article-actions {
-  display: flex;
-  gap: 6px;
-  opacity: 0.4;
-  transition: opacity var(--transition);
-}
-
-.headline-item:hover .article-actions,
-.card:hover .article-actions,
-.article-actions:focus-within {
-  opacity: 1;
-}
-
-.btn-action {
-  background: transparent;
-  border: 1px solid var(--rule);
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--muted);
-  transition: all var(--transition);
-}
-
-.btn-action:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: scale(1.1);
-}
-
-.btn-action.active {
-  color: #f59e0b;
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  opacity: 1;
-}
-
-/* ==========================================================================
-   Grid Card Layout
-   ========================================================================== */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px 20px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 28px 18px;
 }
 
 .card {
-  background: var(--paper-elevated);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: all var(--transition);
-}
-
-.card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--card-shadow);
-  transform: translateY(-2px);
-}
-
-.card.hidden {
-  display: none !important;
+  min-width: 0;
 }
 
 .image-wrap {
   display: block;
   position: relative;
-  aspect-ratio: 16/9;
-  background: var(--tag-bg);
+  aspect-ratio: 4/2.65;
+  background: #ded8cc;
   overflow: hidden;
+}
+
+.image-wrap.missing:after,
+.image-wrap:empty:after {
+  content: "DAILY NEWS";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #8e887c;
+  font: 700 11px ui-monospace, monospace;
+  letter-spacing: .12em;
 }
 
 .image-wrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.4s ease;
+  filter: saturate(.8);
+  transition: .35s;
 }
 
-.card:hover .image-wrap img {
-  transform: scale(1.04);
+.card:hover img {
+  transform: scale(1.025);
+  filter: saturate(1);
 }
 
-.image-wrap .rank {
+.rank {
   position: absolute;
-  top: 8px;
   left: 8px;
-  background: rgba(0, 0, 0, 0.7);
-  color: #fff;
+  top: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 4px 6px;
+  font: 700 10px ui-monospace, monospace;
 }
 
 .card-copy {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
+  padding-top: 13px;
 }
 
-.card-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 6px;
+.card h3 {
+  font: 500 18px/1.25 Georgia, "Songti SC", serif;
+  margin: 0 0 9px;
 }
 
-.card-copy h3 {
-  font: 600 17px/1.3 "Newsreader", "Songti SC", Georgia, serif;
-  margin: 0;
-}
-
-.card-copy h3 a {
-  color: var(--ink);
+.card h3 a {
+  color: inherit;
   text-decoration: none;
 }
 
-.card-copy h3 a:hover {
+.card h3 a:hover {
   color: var(--accent);
 }
 
-.summary-text {
+.card p {
   font-size: 13px;
+  line-height: 1.55;
   color: var(--muted);
-  line-height: 1.5;
-  margin: 8px 0 4px;
-}
-
-.summary-translation {
-  font-size: 13px;
-  color: var(--ink);
-  opacity: 0.85;
-  line-height: 1.5;
-  margin: 4px 0 0;
+  margin: 0;
 }
 
 .card time {
   display: block;
-  color: var(--muted);
-  font-size: 11px;
-  margin-top: auto;
-  padding-top: 10px;
+  color: #8c877c;
+  font-size: 10px;
+  margin-top: 10px;
 }
 
-/* Highlight search match */
-mark.match {
-  background-color: var(--highlight-bg);
-  color: var(--highlight-color);
-  padding: 1px 3px;
-  border-radius: 2px;
+.translation {
+  color: var(--accent);
+  font-size: 13px;
+  margin: 0 0 6px;
 }
 
-/* ==========================================================================
-   Bookmarks Drawer & Backdrop
-   ========================================================================== */
-.bookmarks-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: min(440px, 90vw);
-  height: 100vh;
-  background: var(--paper-elevated);
-  box-shadow: -6px 0 30px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translateX(0);
-}
-
-.bookmarks-drawer[hidden] {
-  display: flex !important;
-  transform: translateX(105%);
-}
-
-.drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
-  z-index: 999;
-}
-
-.drawer-backdrop[hidden] {
-  display: none !important;
-}
-
-.drawer-header {
-  padding: 18px 20px;
-  border-bottom: 1px solid var(--rule);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.drawer-header h3 {
-  font-size: 16px;
-  margin: 0;
-}
-
-.drawer-actions {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.drawer-body {
-  flex-grow: 1;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.bookmark-item {
+.notice,
+.empty {
+  padding: 18px;
   border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  background: var(--paper);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.bookmark-item-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
-  text-decoration: none;
-  line-height: 1.35;
-}
-
-.bookmark-item-title:hover {
-  color: var(--accent);
-}
-
-.bookmark-item-zh {
-  font-size: 12.5px;
-  color: var(--accent);
-}
-
-.bookmark-item-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11px;
   color: var(--muted);
-  margin-top: 4px;
-}
-
-.bookmark-empty {
-  text-align: center;
-  color: var(--muted);
-  padding: 40px 20px;
-  font-size: 13.5px;
-}
-
-/* ==========================================================================
-   TTS Floating Player Bar
-   ========================================================================== */
-.tts-player-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--ink);
-  color: var(--paper);
-  border-radius: var(--radius-pill);
-  padding: 8px 18px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
-  z-index: 900;
-  max-width: min(520px, 90vw);
-  animation: slideUp 0.3s ease;
-}
-
-.tts-player-bar[hidden] {
-  display: none !important;
-}
-
-@keyframes slideUp {
-  from { transform: translate(-50%, 100%); opacity: 0; }
-  to { transform: translate(-50%, 0); opacity: 1; }
-}
-
-.player-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.player-label {
-  font-size: 13px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.player-controls {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-player {
-  background: rgba(255, 255, 255, 0.15);
-  border: none;
-  color: #fff;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border-radius: 50%;
   font-size: 13px;
 }
 
-.btn-player:hover {
-  background: var(--accent);
+.notice {
+  margin: -15px 0 25px;
+  color: #8d3c2f;
 }
 
-/* ==========================================================================
-   Footer & Back to Top
-   ========================================================================== */
 footer {
   max-width: 1500px;
   margin: auto;
-  padding: 40px 4vw 70px;
+  padding: 34px 4vw 70px;
   color: var(--muted);
-  font-size: 12.5px;
-  border-top: 1px solid var(--rule);
-}
-
-.footer-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+  font-size: 12px;
 }
 
 .back-to-top {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  width: 42px;
-  height: 42px;
-  background: var(--paper-elevated);
+  width: 40px;
+  height: 40px;
+  background: var(--paper);
   border: 1px solid var(--rule);
   color: var(--ink);
   border-radius: 50%;
@@ -1005,44 +260,55 @@ footer {
   place-items: center;
   font-size: 18px;
   text-decoration: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: all var(--transition);
-  z-index: 800;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
 }
 
 .back-to-top:hover {
   border-color: var(--accent);
   color: var(--accent);
-  transform: translateY(-3px);
+  transform: translateY(-2px);
 }
 
-/* ==========================================================================
-   Responsive Breakpoints
-   ========================================================================== */
-@media (max-width: 1024px) {
-  .cover-layout {
-    grid-template-columns: 280px 1fr;
-    gap: 24px;
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
-@media (max-width: 768px) {
-  .hero-topbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .header-controls {
-    align-items: stretch;
-  }
-  .search-box {
-    max-width: 100%;
-  }
-  .cover-layout {
+@media (max-width: 700px) {
+  .hero {
+    padding-top: 42px;
     grid-template-columns: 1fr;
   }
-  .cover-column {
-    position: static;
-    max-width: 320px;
-    margin-bottom: 20px;
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px 12px;
+  }
+  .section-heading {
+    align-items: flex-end;
+  }
+  .publisher {
+    font-size: 11px;
+  }
+  .card h3 {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 430px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    display: grid;
+    grid-template-columns: 42% 1fr;
+    gap: 14px;
+  }
+  .image-wrap {
+    aspect-ratio: 1;
+  }
+  .card-copy {
+    padding: 0;
   }
 }
