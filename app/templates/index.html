@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Daily News · 今日新闻</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', path='/progress.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', path='/screenshot.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}?v=2.1">
+  <link rel="stylesheet" href="{{ url_for('static', path='/progress.css') }}?v=2.1">
+  <link rel="stylesheet" href="{{ url_for('static', path='/screenshot.css') }}?v=2.1">
 </head>
 <body>
   <header class="hero">
@@ -86,6 +86,6 @@
   
   <footer>内容版权归各新闻机构所有。本页仅展示公开元数据并链接至原文。</footer>
   <a class="back-to-top" href="#" aria-label="返回页首" title="返回页首">↑</a>
-  <script src="{{ url_for('static', path='/app.js') }}"></script>
+  <script src="{{ url_for('static', path='/app.js') }}?v=2.1"></script>
 </body>
 </html>

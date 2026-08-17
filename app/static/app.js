@@ -55,27 +55,36 @@ if (button.disabled) setTimeout(poll, 500);
   const nav = document.querySelector('.source-nav');
   if (!nav) return;
 
-  let lastScrollY = window.pageYOffset || document.documentElement.scrollTop;
+  let lastScrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
   let isTicking = false;
+
+  function handleScroll() {
+    const currentScrollY = Math.max(0, window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0);
+    const scrollDelta = currentScrollY - lastScrollY;
+
+    // 当用户向下滚动且离开顶部区域时收起导航栏
+    if (scrollDelta > 3 && currentScrollY > 30) {
+      nav.classList.add('nav-hidden');
+    } 
+    // 当用户向上滚动或回到页面顶部时展开导航栏
+    else if (scrollDelta < -5 || currentScrollY <= 15) {
+      nav.classList.remove('nav-hidden');
+    }
+
+    lastScrollY = currentScrollY;
+    isTicking = false;
+  }
 
   window.addEventListener('scroll', () => {
     if (!isTicking) {
-      window.requestAnimationFrame(() => {
-        const currentScrollY = Math.max(0, window.pageYOffset || document.documentElement.scrollTop);
-        const scrollDelta = currentScrollY - lastScrollY;
-
-        // 向下滚动超过阈值且不在页面顶部时隐藏导航栏
-        if (scrollDelta > 6 && currentScrollY > 80) {
-          nav.classList.add('nav-hidden');
-        } else if (scrollDelta < -6 || currentScrollY <= 80) {
-          // 向上滚动或回到顶部时显示导航栏
-          nav.classList.remove('nav-hidden');
-        }
-
-        lastScrollY = currentScrollY;
-        isTicking = false;
-      });
+      window.requestAnimationFrame(handleScroll);
       isTicking = true;
     }
+  }, { passive: true });
+
+  // 移动端手指离开屏幕后，动量滚动可能继续触发
+  window.addEventListener('touchend', () => {
+    setTimeout(handleScroll, 50);
+    setTimeout(handleScroll, 150);
   }, { passive: true });
 })();
