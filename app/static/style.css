@@ -64,7 +64,7 @@ button:disabled {
 .source-nav {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 100;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -74,6 +74,12 @@ button:disabled {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--rule);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.source-nav.nav-hidden {
+  transform: translateY(-100%);
 }
 
 .source-nav a {
@@ -223,8 +229,20 @@ main {
 
 .translation {
   color: var(--accent);
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1.5;
   margin: 0 0 6px;
+}
+
+.title-translation {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.summary-translation {
+  font-size: 14.5px;
+  line-height: 1.55;
 }
 
 .notice,
