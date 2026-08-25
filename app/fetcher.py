@@ -28,7 +28,12 @@ from app.config import (
     TRANSLATION_PROVIDER,
     USER_AGENT,
 )
-from app.store import save_source, set_state
+from app.store import (
+    get_cached_translation,
+    save_cached_translation,
+    save_source,
+    set_state,
+)
 
 log = logging.getLogger(__name__)
 update_lock = threading.Lock()
@@ -169,16 +174,90 @@ def _mostly_chinese(text: str) -> bool:
     return bool(compact) and sum("\u4e00" <= char <= "\u9fff" for char in compact) / len(compact) > 0.25
 
 
-def _google_translate(client: httpx.Client, text: str) -> str:
-    if not text or _mostly_chinese(text):
-        return text
+def _google_translate_api(client: httpx.Client, text: str) -> str:
     response = client.get(
         "https://translate.googleapis.com/translate_a/single",
         params={"client": "gtx", "sl": "auto", "tl": "zh-CN", "dt": "t", "q": text[:4500]},
+        headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"},
+        timeout=10,
     )
     response.raise_for_status()
     payload = response.json()
     return "".join(segment[0] for segment in payload[0] if segment and segment[0]).strip()
+
+
+def _google_translate_web(client: httpx.Client, text: str) -> str:
+    response = client.get(
+        "https://translate.google.com/m",
+        params={"sl": "auto", "tl": "zh-CN", "q": text[:4500]},
+        headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    match = re.search(r'class=[\"\x27]result-container[\"\x27]>(.*?)</div>', response.text, re.DOTALL)
+    if match:
+        clean_text = re.sub(r"<[^>]+>", "", match.group(1))
+        return html.unescape(clean_text).strip()
+    raise ValueError("Google Web result-container not found")
+
+
+def _google_clients5_translate(client: httpx.Client, text: str) -> str:
+    response = client.get(
+        "https://clients5.google.com/translate_a/t",
+        params={"client": "dict-chrome-ex", "sl": "auto", "tl": "zh-CN", "q": text[:4500]},
+        headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if isinstance(data, list) and data:
+        res = "".join(data) if isinstance(data[0], str) else data[0][0]
+        return html.unescape(res).strip()
+    elif isinstance(data, str):
+        return html.unescape(data).strip()
+    raise ValueError("Unexpected clients5 format")
+
+
+def _mymemory_translate(client: httpx.Client, text: str) -> str:
+    response = client.get(
+        "https://api.mymemory.translated.net/get",
+        params={"q": text[:500], "langpair": "en|zh-CN"},
+        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    data = response.json()
+    res = data.get("responseData", {}).get("translatedText", "")
+    if res and "MYMEMORY WARNING" not in res:
+        return html.unescape(res).strip()
+    raise ValueError(f"MyMemory error response: {res}")
+
+
+def _translate_text(client: httpx.Client, text: str) -> str:
+    if not text or not text.strip() or _mostly_chinese(text):
+        return text
+
+    cached = get_cached_translation(text)
+    if cached:
+        return cached
+
+    engines = [
+        ("google_api", _google_translate_api),
+        ("google_web", _google_translate_web),
+        ("google_clients5", _google_clients5_translate),
+        ("mymemory", _mymemory_translate),
+    ]
+
+    for name, engine in engines:
+        try:
+            res = engine(client, text)
+            if res and res.strip():
+                save_cached_translation(text, res)
+                return res
+        except Exception as exc:
+            log.debug("Translation engine %s failed for '%s...': %s", name, text[:30], exc)
+
+    return ""
 
 
 def _openai_translate(client: httpx.Client, title: str, summary: str) -> tuple[str, str]:
@@ -234,24 +313,33 @@ def _deepl_translate(client: httpx.Client, text: str) -> str:
 
 def _translate_article(client: httpx.Client, article: dict) -> dict:
     title, summary = article.get("title", ""), article.get("summary", "")
-    try:
-        if TRANSLATION_PROVIDER == "gemini" and GEMINI_API_KEY:
-            article["title_zh"], article["summary_zh"] = _gemini_translate(client, title, summary)
-        elif TRANSLATION_PROVIDER == "openai" and OPENAI_API_KEY:
-            article["title_zh"], article["summary_zh"] = _openai_translate(client, title, summary)
-        elif TRANSLATION_PROVIDER == "deepl" and DEEPL_API_KEY:
-            article["title_zh"] = _deepl_translate(client, title)
-            article["summary_zh"] = _deepl_translate(client, summary)
-        else:
-            article["title_zh"] = _google_translate(client, title)
-            article["summary_zh"] = _google_translate(client, summary)
-    except Exception as exc:
-        log.warning("Primary translation failed for %s (%s), trying fallback: %s", article.get("url"), TRANSLATION_PROVIDER, exc)
+    title_zh = ""
+    summary_zh = ""
+
+    if TRANSLATION_PROVIDER == "gemini" and GEMINI_API_KEY:
         try:
-            article["title_zh"] = _google_translate(client, title)
-            article["summary_zh"] = _google_translate(client, summary)
-        except Exception:
-            article["title_zh"], article["summary_zh"] = "", ""
+            title_zh, summary_zh = _gemini_translate(client, title, summary)
+        except Exception as exc:
+            log.warning("Gemini translation failed for %s, falling back: %s", article.get("url"), exc)
+    elif TRANSLATION_PROVIDER == "openai" and OPENAI_API_KEY:
+        try:
+            title_zh, summary_zh = _openai_translate(client, title, summary)
+        except Exception as exc:
+            log.warning("OpenAI translation failed for %s, falling back: %s", article.get("url"), exc)
+    elif TRANSLATION_PROVIDER == "deepl" and DEEPL_API_KEY:
+        try:
+            title_zh = _deepl_translate(client, title)
+            summary_zh = _deepl_translate(client, summary) if summary else ""
+        except Exception as exc:
+            log.warning("DeepL translation failed for %s, falling back: %s", article.get("url"), exc)
+
+    if not title_zh and title:
+        title_zh = _translate_text(client, title)
+    if not summary_zh and summary:
+        summary_zh = _translate_text(client, summary)
+
+    article["title_zh"] = title_zh
+    article["summary_zh"] = summary_zh
     return article
 
 

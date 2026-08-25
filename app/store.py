@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import DATABASE_PATH
@@ -49,6 +51,14 @@ def init_db() -> None:
                 date TEXT UNIQUE NOT NULL,
                 content TEXT NOT NULL,
                 summary_points_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS translation_cache (
+                text_hash TEXT PRIMARY KEY,
+                original_text TEXT NOT NULL,
+                translated_text TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
         """)
@@ -119,3 +129,26 @@ def get_latest_briefing() -> dict | None:
         "summary_points": points,
         "created_at": row["created_at"],
     }
+
+
+def get_cached_translation(text: str) -> str | None:
+    if not text or not text.strip():
+        return ""
+    text_hash = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
+    with connect() as conn:
+        row = conn.execute("SELECT translated_text FROM translation_cache WHERE text_hash=?", (text_hash,)).fetchone()
+    return row["translated_text"] if row else None
+
+
+def save_cached_translation(text: str, translated_text: str) -> None:
+    if not text or not text.strip() or not translated_text or not translated_text.strip():
+        return
+    text_hash = hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
+    created_at = datetime.now(timezone.utc).isoformat()
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO translation_cache (text_hash, original_text, translated_text, created_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(text_hash) DO UPDATE SET translated_text=excluded.translated_text, created_at=excluded.created_at""",
+            (text_hash, text.strip(), translated_text.strip(), created_at),
+        )
