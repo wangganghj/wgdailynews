@@ -126,8 +126,8 @@ SOURCES = (
         "The Times",
         "https://www.thetimes.com/",
         (
-            "https://news.google.com/rss/search?q=site:thetimes.com+OR+site:thetimes.co.uk&hl=en-GB&gl=GB&ceid=GB:en",
             "https://www.bing.com/news/search?q=site:thetimes.com&format=rss",
+            "https://news.google.com/rss/search?q=site:thetimes.com+OR+site:thetimes.co.uk&hl=en-GB&gl=GB&ceid=GB:en",
         ),
     ),
     Source(
@@ -135,8 +135,8 @@ SOURCES = (
         "The Daily Telegraph",
         "https://www.telegraph.co.uk/",
         (
-            "https://news.google.com/rss/search?q=site:telegraph.co.uk&hl=en-GB&gl=GB&ceid=GB:en",
             "https://www.bing.com/news/search?q=site:telegraph.co.uk&format=rss",
+            "https://news.google.com/rss/search?q=site:telegraph.co.uk&hl=en-GB&gl=GB&ceid=GB:en",
         ),
     ),
     Source(

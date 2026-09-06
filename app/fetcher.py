@@ -97,12 +97,95 @@ def _feed_image(entry) -> str | None:
     for enclosure in entry.get("enclosures", []):
         if enclosure.get("type", "").startswith("image/") and enclosure.get("href"):
             return enclosure["href"]
-    # Check Bing News or custom tags in feed entry
+    # Check Bing News custom tags (news_image) or dictionary keys
+    if entry.get("news_image"):
+        return entry["news_image"]
     for key, val in entry.items():
-        if key.lower().endswith("image") and isinstance(val, str) and val.startswith("http"):
+        if ("image" in key.lower() or "thumbnail" in key.lower() or "photo" in key.lower()) and isinstance(val, str) and val.startswith("http"):
             return val
-    img = BeautifulSoup(entry.get("summary", ""), "html.parser").find("img")
-    return img.get("src") if img else None
+    summary_html = entry.get("summary", "") or entry.get("description", "")
+    if summary_html:
+        img = BeautifulSoup(summary_html, "html.parser").find("img")
+        if img and img.get("src") and img["src"].startswith("http"):
+            return img["src"]
+    return None
+
+
+def _is_valid_image(url: str | None) -> bool:
+    if not url or not isinstance(url, str) or not url.startswith("http"):
+        return False
+    lower = url.lower()
+    blocked = (
+        "googleusercontent.com",
+        "gstatic.com",
+        "favicon",
+        "placeholder",
+        "avatar",
+        "iconfinder",
+        "1x1",
+        "pinimg.com",
+        "etsystatic.com",
+        "peakpx.com",
+        "tamindir.com",
+    )
+    return not any(b in lower for b in blocked)
+
+
+def _find_news_image(client: httpx.Client, title: str, publisher: str = "") -> str | None:
+    clean_title = re.sub(
+        r"[\s\-_–|]+(?:The Times|The Daily Telegraph|The Telegraph|The Guardian|BBC|Reuters|Bloomberg|Financial Times|Wall Street Journal).*$",
+        "",
+        title,
+        flags=re.I,
+    ).strip()
+    if not clean_title or len(clean_title) < 6:
+        return None
+
+    # 1. Bing News RSS (exact, unquoted, and keyword prefixes)
+    words = clean_title.split()
+    queries = [f'"{clean_title}"', clean_title]
+    if len(words) > 5:
+        queries.append(" ".join(words[:6]))
+    for q in queries:
+        try:
+            url = f"https://www.bing.com/news/search?q={urllib.parse.quote(q)}&format=rss"
+            r = client.get(url, timeout=5)
+            m = re.search(r"<(?:[a-zA-Z0-9_\-]+:)?image>(https?://[^\s<>]+)</(?:[a-zA-Z0-9_\-]+:)?image>", r.text, re.I)
+            if m:
+                img = m.group(1).replace("&amp;", "&")
+                if _is_valid_image(img):
+                    return img
+        except Exception:
+            pass
+
+    # 2. Yahoo News RSS (syndicated news photos)
+    try:
+        url = f"https://news.search.yahoo.com/rss?p={urllib.parse.quote(clean_title)}"
+        r = client.get(url, timeout=5)
+        m = re.search(r"<media:content[^>]+url=[\"\x27](https?://[^\s\"\x27<>]+)[\"\x27]", r.text, re.I)
+        if m:
+            img = m.group(1).replace("&amp;", "&")
+            if _is_valid_image(img):
+                return img
+    except Exception:
+        pass
+
+    # 3. DuckDuckGo News
+    try:
+        r_token = client.get(f"https://duckduckgo.com/?q={urllib.parse.quote(clean_title)}&iar=news&ia=news", timeout=5)
+        vqd_match = re.search(r"vqd=([\x22\x27]?)([0-9\-]+)\1", r_token.text)
+        if vqd_match:
+            vqd = vqd_match.group(2)
+            r_news = client.get(f"https://duckduckgo.com/news.js?l=us-en&o=json&q={urllib.parse.quote(clean_title)}&vqd={vqd}", timeout=5)
+            results = r_news.json().get("results", [])
+            for res in results:
+                img = res.get("image")
+                if _is_valid_image(img):
+                    return img
+    except Exception:
+        pass
+
+    return None
 
 
 def _from_feed(client: httpx.Client, source) -> list[dict]:
@@ -148,24 +231,38 @@ def _from_feed(client: httpx.Client, source) -> list[dict]:
     return deduped[:10]
 
 
-def _enrich_article(client: httpx.Client, article: dict) -> dict:
-    if article.get("image") and article.get("summary"):
-        return article
-    try:
-        response = client.get(article["url"])
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        article["image"] = article.get("image") or _meta(
-            soup, ("property", "og:image"), ("name", "twitter:image"), ("name", "twitter:image:src")
-        )
-        article["summary"] = article.get("summary") or _plain(
-            _meta(soup, ("property", "og:description"), ("name", "description"), ("name", "twitter:description"))
-        )
-        published = _meta(soup, ("property", "article:published_time"), ("name", "date"))
-        if published:
-            article["published"] = published
-    except Exception as exc:
-        log.debug("Could not enrich %s: %s", article["url"], exc)
+def _enrich_article(client: httpx.Client, article: dict, source_name: str = "") -> dict:
+    if not _is_valid_image(article.get("image")):
+        article["image"] = None
+
+    if not article.get("image") or not article.get("summary"):
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            }
+            response = client.get(article["url"], headers=headers, timeout=8)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "html.parser")
+                img = _meta(soup, ("property", "og:image"), ("name", "twitter:image"), ("name", "twitter:image:src"))
+                if _is_valid_image(img):
+                    article["image"] = article.get("image") or img
+                article["summary"] = article.get("summary") or _plain(
+                    _meta(soup, ("property", "og:description"), ("name", "description"), ("name", "twitter:description"))
+                )
+                published = _meta(soup, ("property", "article:published_time"), ("name", "date"))
+                if published:
+                    article["published"] = published
+        except Exception as exc:
+            log.debug("Could not enrich %s: %s", article["url"], exc)
+
+    # If image is still missing (e.g. paywalled news like The Times / Telegraph), look up news thumbnail
+    if not _is_valid_image(article.get("image")) and article.get("title"):
+        try:
+            article["image"] = _find_news_image(client, article["title"], source_name)
+        except Exception as exc:
+            log.debug("Could not find news image for %s: %s", article.get("title"), exc)
+
     return article
 
 
@@ -569,7 +666,7 @@ def fetch_source(source) -> tuple[list[dict], str | None]:
             if source.mode != "screenshot":
                 _progress(source, "补全图片与摘要")
                 with ThreadPoolExecutor(max_workers=4) as pool:
-                    articles = list(pool.map(lambda item: _enrich_article(client, item), articles))
+                    articles = list(pool.map(lambda item: _enrich_article(client, item, source.name), articles))
             if source.key != "zaobao":
                 _progress(source, "翻译为中文")
                 with ThreadPoolExecutor(max_workers=4) as pool:
