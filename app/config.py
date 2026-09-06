@@ -47,9 +47,9 @@ SOURCES = (
         "The Economist",
         "https://www.economist.com/",
         (
+            "https://news.google.com/rss/search?q=site:economist.com&hl=en-US&gl=US&ceid=US:en",
+            "https://www.bing.com/news/search?q=site:economist.com&format=rss",
             "https://www.economist.com/the-world-this-week/rss.xml",
-            "https://www.economist.com/printedition/rss.xml",
-            "https://www.economist.com/leaders/rss.xml",
         ),
         mode="cover",
         cover_page="https://www.economist.com/weeklyedition",
@@ -77,6 +77,18 @@ SOURCES = (
         cover_id="ny_nyt",
     ),
     Source(
+        "la-times",
+        "Los Angeles Times",
+        "https://www.latimes.com/",
+        (
+            "https://www.latimes.com/world-nation/rss2.0.xml",
+            "https://news.google.com/rss/search?q=site:latimes.com&hl=en-US&gl=US&ceid=US:en",
+        ),
+        mode="cover",
+        cover_page="https://frontpages.freedomforum.org/newspapers/ca_lat-Los_Angeles_Times",
+        cover_id="ca_lat",
+    ),
+    Source(
         "globe-and-mail",
         "The Globe and Mail",
         "https://www.theglobeandmail.com/",
@@ -99,6 +111,33 @@ SOURCES = (
         mode="cover",
         cover_page="https://frontpages.freedomforum.org/newspapers/can_vs-The_Vancouver_Sun",
         cover_id="can_vs",
+    ),
+    Source(
+        "guardian",
+        "The Guardian",
+        "https://www.theguardian.com/",
+        (
+            "https://www.theguardian.com/world/rss",
+            "https://www.theguardian.com/international/rss",
+        ),
+    ),
+    Source(
+        "the-times",
+        "The Times",
+        "https://www.thetimes.com/",
+        (
+            "https://news.google.com/rss/search?q=site:thetimes.com+OR+site:thetimes.co.uk&hl=en-GB&gl=GB&ceid=GB:en",
+            "https://www.bing.com/news/search?q=site:thetimes.com&format=rss",
+        ),
+    ),
+    Source(
+        "telegraph",
+        "The Daily Telegraph",
+        "https://www.telegraph.co.uk/",
+        (
+            "https://news.google.com/rss/search?q=site:telegraph.co.uk&hl=en-GB&gl=GB&ceid=GB:en",
+            "https://www.bing.com/news/search?q=site:telegraph.co.uk&format=rss",
+        ),
     ),
     Source(
         "bbc",

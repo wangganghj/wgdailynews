@@ -45,17 +45,21 @@ def test_status_repairs_stale_running_flag(monkeypatch):
 
 
 def test_source_modes_and_order():
-    assert all(source.mode == "cover" for source in SOURCES[:7])
-    assert all(source.feeds for source in SOURCES[:7])
-    assert [source.key for source in SOURCES[7:9]] == ["bbc", "zaobao"]
+    assert all(source.mode == "cover" for source in SOURCES[:8])
+    assert all(source.feeds for source in SOURCES[:8])
+    assert "guardian" in [source.key for source in SOURCES]
+    assert "the-times" in [source.key for source in SOURCES]
+    assert "telegraph" in [source.key for source in SOURCES]
+    assert "la-times" in [source.key for source in SOURCES]
     assert "wsj-cn" not in {source.key for source in SOURCES}
     assert SOURCES[0].cover_id == "wsj"
     assert SOURCES[1].cover_provider == "frontpages"
     assert SOURCES[4].cover_id == "ny_nyt"
+    assert SOURCES[5].cover_id == "ca_lat"
     assert SOURCES[2].cover_provider in ("economist_cdn", "homepage")
     assert SOURCES[3].cover_provider == "frontpages"
-    assert SOURCES[5].cover_id == "can_tgam"
-    assert SOURCES[6].cover_id == "can_vs"
+    assert SOURCES[6].cover_id == "can_tgam"
+    assert SOURCES[7].cover_id == "can_vs"
 
 
 def test_interrupted_update_is_reset(monkeypatch):
