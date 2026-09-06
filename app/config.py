@@ -122,15 +122,6 @@ SOURCES = (
         ),
     ),
     Source(
-        "the-times",
-        "The Times",
-        "https://www.thetimes.com/",
-        (
-            "https://www.bing.com/news/search?q=site:thetimes.com&format=rss",
-            "https://news.google.com/rss/search?q=site:thetimes.com+OR+site:thetimes.co.uk&hl=en-GB&gl=GB&ceid=GB:en",
-        ),
-    ),
-    Source(
         "telegraph",
         "The Daily Telegraph",
         "https://www.telegraph.co.uk/",

@@ -48,7 +48,6 @@ def test_source_modes_and_order():
     assert all(source.mode == "cover" for source in SOURCES[:8])
     assert all(source.feeds for source in SOURCES[:8])
     assert "guardian" in [source.key for source in SOURCES]
-    assert "the-times" in [source.key for source in SOURCES]
     assert "telegraph" in [source.key for source in SOURCES]
     assert "la-times" in [source.key for source in SOURCES]
     assert "wsj-cn" not in {source.key for source in SOURCES}

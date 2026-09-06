@@ -2,7 +2,7 @@
 
 一个轻量、现代化、智能化的 Docker 新闻聚合与早报平台：
 - **主流大报封面与头条**：WSJ、The Washington Post、The Economist、Financial Times、The New York Times、Los Angeles Times、The Globe and Mail、The Vancouver Sun。
-- **全球综合与财经资讯**：The Guardian、The Times、The Daily Telegraph、BBC、联合早报、Reuters（路透社）、Bloomberg（彭博社）、Nikkei Asia（日经亚洲）、TechCrunch。
+- **全球综合与财经资讯**：The Guardian、The Daily Telegraph、BBC、联合早报、Reuters（路透社）、Bloomberg（彭博社）、Nikkei Asia（日经亚洲）、TechCrunch。
 - **AI 智能速读（Daily AI Briefing）**：基于 Gemini / OpenAI 大模型聚合全网 Top 5 核心热点快讯与宏观综述。
 - **现代化 UI / UX**：支持深色/浅色双色温主题、全局即时搜索与高亮、分类标签筛选、稍后阅读收藏夹、字号调节与 Web Speech 语音朗读（TTS）。
 - **自动化推送**：更新完成后支持一键推送每日早报到 Telegram 频道或 Webhook（飞书/企业微信/Discord）。
