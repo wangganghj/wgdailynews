@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import copy
 import html
 import json
@@ -190,7 +191,7 @@ def _find_news_image(client: httpx.Client, title: str, publisher: str = "") -> s
 
 def _from_feed(client: httpx.Client, source) -> list[dict]:
     results = []
-    for feed_url in source.feeds:
+    for feed_index, feed_url in enumerate(source.feeds):
         try:
             response = client.get(feed_url)
             response.raise_for_status()
@@ -206,6 +207,7 @@ def _from_feed(client: httpx.Client, source) -> list[dict]:
                         pass
                 title = _plain(entry.get("title"), 180)
                 if url and title:
+                    published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
                     results.append({
                         "title": title,
                         "url": url,
@@ -216,18 +218,33 @@ def _from_feed(client: httpx.Client, source) -> list[dict]:
                             or (entry.get("content", [{}])[0].get("value") if entry.get("content") else "")
                         ),
                         "published": entry.get("published") or entry.get("updated") or "",
+                        "_published_ts": calendar.timegm(published_parsed) if published_parsed else 0,
+                        "_feed_index": feed_index,
                     })
-            if len(results) >= 10:
-                break
         except Exception as exc:
             log.warning("Feed fetch error for %s (%s): %s", source.name, feed_url, exc)
             continue
+
+    # A stale primary feed must not hide fresher stories from fallback feeds.
+    # Merge every configured feed and rank the combined set by publication time.
+    results.sort(
+        key=lambda article: (
+            article["_published_ts"] > 0,
+            article["_published_ts"],
+            -article["_feed_index"],
+        ),
+        reverse=True,
+    )
     deduped, seen = [], set()
     for article in results:
         marker = article["url"].split("?")[0]
         if marker not in seen:
+            article.pop("_published_ts", None)
+            article.pop("_feed_index", None)
             deduped.append(article)
             seen.add(marker)
+        if len(deduped) >= 10:
+            break
     return deduped[:10]
 
 

@@ -22,8 +22,10 @@ SOURCES = (
         "The Wall Street Journal",
         "https://www.wsj.com/",
         (
-            "https://feeds.content.dowjones.io/public/rss/wsj_world_news",
-            "https://feeds.content.dowjones.io/public/rss/mw_topstories",
+            "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",
+            "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain",
+            "https://feeds.content.dowjones.io/public/rss/WSJcomUSBusiness",
+            "https://feeds.content.dowjones.io/public/rss/RSSWSJD",
             "https://news.google.com/rss/search?q=site:wsj.com&hl=en-US&gl=US&ceid=US:en",
         ),
         mode="cover",
