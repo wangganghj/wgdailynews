@@ -577,17 +577,20 @@ def _fetch_frontpages_cover(client: httpx.Client, source) -> None:
 
 def _fetch_economist_cover(client: httpx.Client, source) -> None:
     """Fetches the official weekly print magazine cover of The Economist from CDN."""
-    now = datetime.now(timezone.utc)
+    today = datetime.now(timezone.utc).date()
+    days_until_saturday = (5 - today.weekday()) % 7
+    newest_issue_date = today + timedelta(days=days_until_saturday)
     headers = {"Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"}
     image = None
-    for days in range(21):
-        target_date = now - timedelta(days=days)
-        datestr = target_date.strftime("%Y%m%d")
-        for suffix in ("CUD001", "DE_US", "DE_UK", "DE_AP"):
+    for weeks_ago in range(4):
+        issue_date = newest_issue_date - timedelta(weeks=weeks_ago)
+        datestr = issue_date.strftime("%Y%m%d")
+        for suffix in ("DE_US", "DE_UK", "DE_AP"):
             img_url = f"https://www.economist.com/img/b/1000/1333/90/media-assets/image/{datestr}_{suffix}.jpg"
             try:
                 candidate = client.get(img_url, headers=headers)
-                if candidate.status_code == 200 and len(candidate.content) >= 10_000:
+                content_type = candidate.headers.get("content-type", "")
+                if candidate.status_code == 200 and content_type.startswith("image/") and len(candidate.content) >= 10_000:
                     image = candidate
                     break
             except Exception:

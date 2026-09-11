@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
-from app.fetcher import _from_feed
+import app.fetcher as fetcher_module
+from app.fetcher import _fetch_economist_cover, _from_feed
 
 
 class _Response:
@@ -55,3 +56,40 @@ def test_wsj_uses_current_official_feeds():
     assert "https://feeds.content.dowjones.io/public/rss/RSSWorldNews" in wsj.feeds
     assert "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain" in wsj.feeds
     assert not any("wsj_world_news" in feed or "mw_topstories" in feed for feed in wsj.feeds)
+
+
+def test_economist_cover_checks_upcoming_saturday_and_skips_article_images(monkeypatch):
+    real_datetime = fetcher_module.datetime
+
+    class CoverResponse:
+        def __init__(self, found=False):
+            self.status_code = 200 if found else 403
+            self.headers = {"content-type": "image/jpeg" if found else "text/plain"}
+            self.content = b"x" * 10_001 if found else b"not found"
+
+    class CoverClient:
+        def __init__(self):
+            self.urls = []
+
+        def get(self, url, headers=None):
+            self.urls.append(url)
+            return CoverResponse(url.endswith("20260912_DE_US.jpg"))
+
+    class FixedDateTime:
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 9, 11, tzinfo=tz)
+
+    saved = []
+    monkeypatch.setattr(fetcher_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(fetcher_module, "_save_cover", lambda content, source: saved.append(content))
+    client = CoverClient()
+    source = SimpleNamespace(key="economist")
+
+    _fetch_economist_cover(client, source)
+
+    assert client.urls == [
+        "https://www.economist.com/img/b/1000/1333/90/media-assets/image/20260912_DE_US.jpg"
+    ]
+    assert all("CUD001" not in url for url in client.urls)
+    assert saved == [b"x" * 10_001]
